@@ -1,11 +1,21 @@
 import { Request, Response, NextFunction } from 'express';
+import { Types } from 'mongoose';
 import { StudentProfile } from '../models/StudentProfile';
 import { StudentSkill } from '../models/StudentSkill';
 import { Evidence } from '../models/Evidence';
+import { Job } from '../models/Job';
+import { Application } from '../models/Application';
+import { Assessment } from '../models/Assessment';
+import { Project } from '../models/Project';
 import { ApiError } from '../utils/apiError';
 import { sendSuccess } from '../utils/apiResponse';
 import { resolveSkillDocument } from '../utils/skillNormalizer';
-import { UpdateProfileInput, AddSkillInput } from '../validators/student.validator';
+import {
+  UpdateProfileInput,
+  AddSkillInput,
+  CreateAssessmentInput,
+  CreateProjectInput,
+} from '../validators/student.validator';
 
 /**
  * Get current authenticated student's profile, education, and skill summary.
@@ -151,3 +161,336 @@ export const addOrUpdateSkill = async (
     next(error);
   }
 };
+
+/**
+ * GET /api/students/dashboard/stats
+ * Real database-backed statistics for the student dashboard.
+ */
+export const getDashboardStats = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) throw ApiError.unauthorized('Authentication required.');
+
+    const profile = await StudentProfile.findOne({ user: req.user.userId });
+    if (!profile) throw ApiError.notFound('Student profile not found.');
+
+    const [
+      availableJobs,
+      totalApplications,
+      interviews,
+      offers,
+      shortlisted,
+      totalSkills,
+      verifiedSkills,
+      totalEvidence,
+      verifiedEvidence,
+      pendingEvidence,
+      recentApplications,
+      recentEvidence,
+    ] = await Promise.all([
+      Job.countDocuments({ status: 'open' }),
+      Application.countDocuments({ student: profile._id }),
+      Application.countDocuments({ student: profile._id, currentStatus: 'interview' }),
+      Application.countDocuments({ student: profile._id, currentStatus: 'offered' }),
+      Application.countDocuments({
+        student: profile._id,
+        currentStatus: { $in: ['shortlisted', 'assessment', 'interview', 'offered'] },
+      }),
+      StudentSkill.countDocuments({ student: profile._id }),
+      StudentSkill.countDocuments({ student: profile._id, isVerified: true }),
+      Evidence.countDocuments({ student: profile._id }),
+      Evidence.countDocuments({ student: profile._id, status: 'verified' }),
+      Evidence.countDocuments({
+        student: profile._id,
+        status: { $in: ['submitted', 'under_review'] },
+      }),
+      Application.find({ student: profile._id })
+        .sort({ appliedAt: -1 })
+        .limit(4)
+        .populate({
+          path: 'job',
+          select: 'title workplaceType jobType location salaryMin salaryMax salaryCurrency',
+          populate: { path: 'company', select: 'name logoUrl industry' },
+        }),
+      Evidence.find({ student: profile._id })
+        .sort({ createdAt: -1 })
+        .limit(4)
+        .populate('skills', 'name slug category'),
+    ]);
+
+    sendSuccess(
+      res,
+      {
+        stats: {
+          availableJobs,
+          totalApplications,
+          interviews,
+          offers,
+          shortlisted,
+          totalSkills,
+          verifiedSkills,
+          totalEvidence,
+          verifiedEvidence,
+          pendingEvidence,
+          cgpa: profile.cgpa,
+          graduationYear: profile.graduationYear,
+          department: profile.department,
+          degree: profile.degree,
+          rollNumber: profile.rollNumber,
+        },
+        recentApplications,
+        recentEvidence,
+      },
+      'Dashboard stats retrieved successfully'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/students/assessments
+ * List assessments taken by the student.
+ */
+export const getStudentAssessments = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) throw ApiError.unauthorized('Authentication required.');
+
+    const profile = await StudentProfile.findOne({ user: req.user.userId });
+    if (!profile) throw ApiError.notFound('Student profile not found.');
+
+    const assessments = await Assessment.find({ student: profile._id })
+      .populate('skill', 'name slug category')
+      .sort({ takenAt: -1 });
+
+    sendSuccess(res, assessments, 'Assessments retrieved successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/students/assessments
+ * Record a proctored or verified assessment and auto-generate linked evidence.
+ */
+export const createStudentAssessment = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) throw ApiError.unauthorized('Authentication required.');
+
+    const profile = await StudentProfile.findOne({ user: req.user.userId });
+    if (!profile) throw ApiError.notFound('Student profile not found.');
+
+    const { title, provider, skill: skillName, score, maxScore, passed, certificateUrl } =
+      req.body as CreateAssessmentInput;
+
+    const skillDoc = await resolveSkillDocument(skillName);
+    if (!skillDoc) {
+      throw ApiError.badRequest(`Skill '${skillName}' could not be resolved to a canonical skill.`);
+    }
+
+    // Create Assessment record
+    const assessment = await Assessment.create({
+      student: profile._id,
+      skill: skillDoc._id,
+      title,
+      provider,
+      score,
+      maxScore,
+      passed,
+      takenAt: new Date(),
+      certificateUrl,
+    });
+
+    // Auto-create evidence record for the assessment
+    const evidence = await Evidence.create({
+      student: profile._id,
+      skills: [skillDoc._id],
+      type: provider === 'internal' ? 'coding_assessment' : 'technical_quiz',
+      title: `${title} (${provider.toUpperCase()})`,
+      description: `Scored ${score}/${maxScore} (${Math.round((score / maxScore) * 100)}%) on ${title}`,
+      url: certificateUrl,
+      status: 'submitted',
+      isVerified: false,
+      score: Math.round((score / maxScore) * 100),
+      metadata: {
+        assessmentId: assessment._id,
+        provider,
+        score,
+        maxScore,
+      },
+      auditHistory: [],
+    });
+
+    // Link evidence to student skill
+    let studentSkill = await StudentSkill.findOne({
+      student: profile._id,
+      skill: skillDoc._id,
+    });
+
+    if (!studentSkill) {
+      studentSkill = await StudentSkill.create({
+        student: profile._id,
+        skill: skillDoc._id,
+        proficiency: score / maxScore >= 0.8 ? 'advanced' : 'intermediate',
+        status: 'submitted',
+        isVerified: false,
+        confidenceScore: 40,
+        evidence: [evidence._id as Types.ObjectId],
+      });
+    } else {
+      if (!studentSkill.evidence.some((id) => id.equals(evidence._id as Types.ObjectId))) {
+        studentSkill.evidence.push(evidence._id as Types.ObjectId);
+      }
+      if (studentSkill.status === 'self_reported') {
+        studentSkill.status = 'submitted';
+      }
+      await studentSkill.save();
+    }
+
+    await assessment.populate('skill', 'name slug category');
+
+    sendSuccess(res, assessment, 'Assessment recorded successfully', 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/students/projects
+ * List projects built by the student.
+ */
+export const getStudentProjects = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) throw ApiError.unauthorized('Authentication required.');
+
+    const profile = await StudentProfile.findOne({ user: req.user.userId });
+    if (!profile) throw ApiError.notFound('Student profile not found.');
+
+    const projects = await Project.find({ student: profile._id })
+      .populate('skills', 'name slug category')
+      .populate('evidence')
+      .sort({ createdAt: -1 });
+
+    sendSuccess(res, projects, 'Projects retrieved successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/students/projects
+ * Record an evaluated project and auto-generate linked evidence.
+ */
+export const createStudentProject = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) throw ApiError.unauthorized('Authentication required.');
+
+    const profile = await StudentProfile.findOne({ user: req.user.userId });
+    if (!profile) throw ApiError.notFound('Student profile not found.');
+
+    const {
+      title,
+      description,
+      skills: skillNames,
+      repoUrl,
+      liveUrl,
+      startDate,
+      endDate,
+      isOngoing,
+    } = req.body as CreateProjectInput;
+
+    const resolvedSkillIds: Types.ObjectId[] = [];
+    for (const name of skillNames) {
+      const doc = await resolveSkillDocument(name);
+      if (doc && !resolvedSkillIds.some((id) => id.equals(doc._id as Types.ObjectId))) {
+        resolvedSkillIds.push(doc._id as Types.ObjectId);
+      }
+    }
+
+    if (resolvedSkillIds.length === 0) {
+      throw ApiError.badRequest('At least one valid canonical skill is required.');
+    }
+
+    // Create Evidence for this project
+    const evidence = await Evidence.create({
+      student: profile._id,
+      skills: resolvedSkillIds,
+      type: repoUrl ? 'github_repo' : 'evaluated_project',
+      title: `Project: ${title}`,
+      description,
+      url: repoUrl || liveUrl,
+      status: 'submitted',
+      isVerified: false,
+      metadata: { repoUrl, liveUrl },
+      auditHistory: [],
+    });
+
+    // Create Project
+    const project = await Project.create({
+      student: profile._id,
+      title,
+      description,
+      skills: resolvedSkillIds,
+      repoUrl,
+      liveUrl,
+      startDate: startDate ? new Date(startDate) : undefined,
+      endDate: endDate ? new Date(endDate) : undefined,
+      isOngoing,
+      evidence: [evidence._id as Types.ObjectId],
+    });
+
+    // Link evidence to each StudentSkill
+    for (const sId of resolvedSkillIds) {
+      let studentSkill = await StudentSkill.findOne({
+        student: profile._id,
+        skill: sId,
+      });
+
+      if (!studentSkill) {
+        studentSkill = await StudentSkill.create({
+          student: profile._id,
+          skill: sId,
+          proficiency: 'intermediate',
+          status: 'submitted',
+          isVerified: false,
+          confidenceScore: 35,
+          evidence: [evidence._id as Types.ObjectId],
+        });
+      } else {
+        if (!studentSkill.evidence.some((id) => id.equals(evidence._id as Types.ObjectId))) {
+          studentSkill.evidence.push(evidence._id as Types.ObjectId);
+        }
+        if (studentSkill.status === 'self_reported') {
+          studentSkill.status = 'submitted';
+        }
+        await studentSkill.save();
+      }
+    }
+
+    await project.populate('skills', 'name slug category');
+
+    sendSuccess(res, project, 'Project recorded successfully', 201);
+  } catch (error) {
+    next(error);
+  }
+};
+

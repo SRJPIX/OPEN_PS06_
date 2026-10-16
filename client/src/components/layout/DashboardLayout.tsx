@@ -15,6 +15,11 @@ import {
   ChevronRight,
   Shield,
   Activity,
+  GraduationCap,
+  FolderGit2,
+  FileText,
+  Search,
+  Settings,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../ui/Badge';
@@ -46,25 +51,57 @@ export const DashboardLayout: React.FC = () => {
     if (user.role === 'student') {
       return [
         {
-          label: 'Student Overview',
+          label: 'Overview',
           href: '/student/dashboard',
           icon: <LayoutDashboard className="w-4 h-4" />,
         },
         {
-          label: 'Evidence Vault',
-          href: '/student/evidence',
-          icon: <FileCheck className="w-4 h-4" />,
-          badge: 'Verified',
+          label: 'Profile & Academics',
+          href: '/student/profile',
+          icon: <GraduationCap className="w-4 h-4" />,
         },
         {
-          label: 'Skill Profile',
+          label: 'Skills & Evidence',
           href: '/student/skills',
           icon: <Award className="w-4 h-4" />,
+          badge: 'Proof',
         },
         {
-          label: 'Matched Jobs',
+          label: 'Assessments & Projects',
+          href: '/student/assessments-projects',
+          icon: <FolderGit2 className="w-4 h-4" />,
+        },
+        {
+          label: 'Job Discovery',
           href: '/student/jobs',
+          icon: <Search className="w-4 h-4" />,
+        },
+        {
+          label: 'Tailored Resumes',
+          href: '/student/resumes',
+          icon: <FileText className="w-4 h-4" />,
+          badge: 'ATS',
+        },
+        {
+          label: 'Resume Analysis',
+          href: '/student/resume-analysis',
+          icon: <ShieldCheck className="w-4 h-4" />,
+        },
+        {
+          label: 'My Applications',
+          href: '/student/applications',
           icon: <Briefcase className="w-4 h-4" />,
+        },
+        {
+          label: 'Interview Intelligence',
+          href: '/student/interview-prep',
+          icon: <Sparkles className="w-4 h-4 text-teal-400" />,
+          badge: 'Prep',
+        },
+        {
+          label: 'Account & Security',
+          href: '/student/settings',
+          icon: <Settings className="w-4 h-4" />,
         },
       ];
     }

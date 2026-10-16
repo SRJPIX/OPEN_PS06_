@@ -79,3 +79,29 @@ export const addSkillSchema = z.object({
 });
 
 export type AddSkillInput = z.infer<typeof addSkillSchema>;
+
+export const createAssessmentSchema = z.object({
+  title: z.string().min(2, 'Assessment title is required').max(200).trim(),
+  provider: z.enum(['internal', 'hackerrank', 'leetcode', 'custom']).default('internal'),
+  skill: z.string().min(1, 'Associated skill is required').trim(),
+  score: z.coerce.number().min(0, 'Score cannot be negative'),
+  maxScore: z.coerce.number().min(1, 'Max score must be at least 1').default(100),
+  passed: z.boolean().default(true),
+  certificateUrl: z.string().trim().optional(),
+});
+
+export type CreateAssessmentInput = z.infer<typeof createAssessmentSchema>;
+
+export const createProjectSchema = z.object({
+  title: z.string().min(2, 'Project title is required').max(200).trim(),
+  description: z.string().min(10, 'Project description must be at least 10 characters').max(3000).trim(),
+  skills: z.array(z.string().min(1)).min(1, 'At least one skill is required'),
+  repoUrl: z.string().trim().optional(),
+  liveUrl: z.string().trim().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  isOngoing: z.boolean().default(false),
+});
+
+export type CreateProjectInput = z.infer<typeof createProjectSchema>;
+

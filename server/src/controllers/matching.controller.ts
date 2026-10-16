@@ -435,3 +435,117 @@ export const getMyJobFit = async (
     next(error);
   }
 };
+
+/**
+ * GET /api/matching/jobs/:jobId/interview-prep
+ * Generate a personalized, evidence-grounded interview preparation kit tailored to the job and candidate match.
+ */
+export const getJobInterviewPrep = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const jobId = req.params.jobId as string;
+    const user = req.user!;
+
+    if (!/^[0-9a-fA-F]{24}$/.test(jobId)) {
+      sendError(res, 'INVALID_ID', 'Invalid job ID format', 400);
+      return;
+    }
+
+    const job = await Job.findById(jobId).populate('company');
+    if (!job) {
+      sendError(res, 'NOT_FOUND', 'Job not found', 404);
+      return;
+    }
+
+    const student = await StudentProfile.findOne({ user: user._id }).populate(
+      'user',
+      'email role status'
+    );
+    if (!student) {
+      sendError(res, 'NOT_FOUND', 'Student profile not found.', 404);
+      return;
+    }
+
+    const allJobSkillIds = [...(job.requiredSkills || []), ...(job.preferredSkills || [])].map((id) =>
+      (id as Types.ObjectId).toString()
+    );
+
+    const skillDocs = await Skill.find({ _id: { $in: allJobSkillIds } });
+    const skillsMap = new Map<string, ISkill>();
+    skillDocs.forEach((s) => skillsMap.set((s._id as Types.ObjectId).toString(), s));
+
+    const [studentSkills, evidenceList] = await Promise.all([
+      StudentSkill.find({ student: student._id }),
+      Evidence.find({ student: student._id, skills: { $in: allJobSkillIds } }),
+    ]);
+
+    const match = calculateStudentJobMatch({
+      job,
+      student,
+      skillsMap,
+      studentSkills,
+      evidenceList,
+    });
+
+    const companyName = (job.company as any)?.name || 'Hiring Company';
+
+    const strengthQuestions = match.supportedSkills.map((s) => ({
+      skill: s.skillName,
+      question: `How have you leveraged ${s.skillName} in your projects or assessments to solve scalability or performance challenges?`,
+      tips: `Highlight the verified evidence in your portfolio (${s.evidenceItems?.length ? 'Verified Evidence' : 'Evaluated Project'}). Be ready to walk through your architecture and design decisions.`,
+      difficulty: 'Intermediate to Advanced',
+    }));
+
+    const gapQuestions = match.requiredSkillGaps.map((s) => ({
+      skill: s.skillName,
+      question: `What is your understanding of ${s.skillName} and how would you ramp up quickly on it for this ${job.title} role?`,
+      tips: `Acknowledge this is a current gap while explaining how your experience in related technologies enables fast onboarding. Review the core concepts before your interview.`,
+      difficulty: 'Foundational',
+    }));
+
+    const scenarioQuestion = {
+      title: `System Architecture Scenario for ${companyName}`,
+      scenario: `Design a fault-tolerant service or component for ${job.title} at ${companyName}, taking into account asynchronous processing, data consistency, and failure modes.`,
+      focusAreas: ['High availability', 'Database schema design', 'API contract design', 'Error handling strategies'],
+    };
+
+    const behavioralQuestions = [
+      {
+        question: 'Tell me about a technical project where you encountered unexpected bugs or deployment issues. How did you resolve them?',
+        focus: 'Problem solving, debugging rigor, and code quality verification.',
+      },
+      {
+        question: `Why are you interested in joining ${companyName} as a ${job.title}?`,
+        focus: `Demonstrating understanding of ${companyName}'s domain and aligning with job requirements.`,
+      },
+    ];
+
+    sendSuccess(
+      res,
+      {
+        job: {
+          id: job._id,
+          title: job.title,
+          company: companyName,
+        },
+        matchSummary: {
+          fitScore: match.fitScore,
+          eligibilityStatus: match.eligibility.status,
+          supportedSkillsCount: match.supportedSkills.length,
+          gapCount: match.requiredSkillGaps.length,
+        },
+        strengthQuestions,
+        gapQuestions,
+        scenarioQuestion,
+        behavioralQuestions,
+      },
+      'Interview preparation kit generated successfully'
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+

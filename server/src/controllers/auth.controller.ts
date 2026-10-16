@@ -249,3 +249,55 @@ export const getMe = async (req: Request, res: Response, next: NextFunction): Pr
     next(error);
   }
 };
+
+/**
+ * PUT /api/auth/password
+ * Update password with current password verification.
+ */
+export const changePassword = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) throw ApiError.unauthorized('Authentication required.');
+
+    const { currentPassword, newPassword } = req.body as {
+      currentPassword?: string;
+      newPassword?: string;
+    };
+
+    if (!currentPassword || !newPassword) {
+      throw ApiError.badRequest('Both current password and new password are required.');
+    }
+
+    if (newPassword.length < 8) {
+      throw ApiError.badRequest('New password must be at least 8 characters long.');
+    }
+
+    const user = await User.findById(req.user.userId).select('+passwordHash');
+    if (!user) throw ApiError.unauthorized('User not found.');
+
+    const isValid = await comparePassword(currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw ApiError.unauthorized('Current password is incorrect.');
+    }
+
+    user.passwordHash = await hashPassword(newPassword);
+    await user.save();
+
+    AuditLog.create({
+      user: user._id,
+      action: 'PASSWORD_CHANGED',
+      entityType: 'User',
+      entityId: user._id.toString(),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+    }).catch((err) => console.error('[AuditLog] Failed to log password change:', err));
+
+    sendSuccess(res, null, 'Password updated successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+

@@ -12,6 +12,8 @@ import skillRoutes from './routes/skill.routes';
 import jobRoutes from './routes/job.routes';
 import jobSourceRoutes from './routes/jobSource.routes';
 import matchingRoutes from './routes/matching.routes';
+import resumeRoutes from './routes/resume.routes';
+import applicationRoutes from './routes/application.routes';
 import { apiRateLimiter } from './middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { sendSuccess } from './utils/apiResponse';
@@ -63,6 +65,8 @@ export const createApp = (): Application => {
         jobs: '/api/jobs',
         jobSources: '/api/jobs/sources',
         matching: '/api/matching',
+        resumes: '/api/resumes',
+        applications: '/api/applications',
       },
     });
   });
@@ -83,6 +87,8 @@ export const createApp = (): Application => {
   app.use('/api/jobs/sources', jobSourceRoutes);
   app.use('/api/jobs', jobRoutes);
   app.use('/api/matching', matchingRoutes);
+  app.use('/api/resumes', resumeRoutes);
+  app.use('/api/applications', applicationRoutes);
 
   // 9. 404 Handler for undefined routes
   app.use(notFoundHandler);

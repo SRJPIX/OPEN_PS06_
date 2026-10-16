@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import { registerStudent, login, logout, getMe } from '../controllers/auth.controller';
+import { registerStudent, login, logout, getMe, changePassword } from '../controllers/auth.controller';
 import { validateBody } from '../middleware/validate.middleware';
 import { registerStudentSchema, loginSchema } from '../validators/auth.validator';
 import {
@@ -40,6 +40,13 @@ router.post('/logout', logout);
  * @access  Private
  */
 router.get('/me', requireAuth, getMe);
+
+/**
+ * @route   PUT /api/auth/password
+ * @desc    Change current user's password
+ * @access  Private
+ */
+router.put('/password', requireAuth, changePassword);
 
 /**
  * Verification & role-guard demonstration endpoints
