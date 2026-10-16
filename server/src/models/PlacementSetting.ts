@@ -73,3 +73,4 @@ const placementSettingSchema = new Schema<IPlacementSetting>(
 export const PlacementSetting: Model<IPlacementSetting> =
   mongoose.models.PlacementSetting ||
   mongoose.model<IPlacementSetting>('PlacementSetting', placementSettingSchema);
+
