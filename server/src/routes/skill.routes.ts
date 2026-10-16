@@ -26,3 +26,4 @@ router.post('/resolve', resolveSkill);
 router.post('/seed', requireAuth, requireAdmin, seedSkillsEndpoint);
 
 export default router;
+

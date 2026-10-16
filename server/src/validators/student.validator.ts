@@ -79,3 +79,4 @@ export const addSkillSchema = z.object({
 });
 
 export type AddSkillInput = z.infer<typeof addSkillSchema>;
+
