@@ -11,7 +11,7 @@ import { requireAuth, requireRole } from '../middleware/auth.middleware';
 const router = Router();
 
 // 1. Student self-inspection of job fit and personalized interview prep
-router.get('/jobs/:jobId/my-fit', requireAuth, requireRole('student'), getMyJobFit);
+router.get(['/jobs/:jobId/my-fit', '/jobs/:jobId/my-match'], requireAuth, requireRole('student'), getMyJobFit);
 router.get('/jobs/:jobId/interview-prep', requireAuth, requireRole('student'), getJobInterviewPrep);
 
 // 2. Placement Officer & Recruiter Batch Ranking

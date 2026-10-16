@@ -50,7 +50,7 @@ router.post('/', requireStudent, validateBody(submitEvidenceSchema), submitEvide
  * @desc    Student: list own submitted evidence
  * @access  Private (Student)
  */
-router.get('/', requireStudent, getMyEvidence);
+router.get('/', getMyEvidence);
 
 /**
  * @route   GET /api/evidence/:id

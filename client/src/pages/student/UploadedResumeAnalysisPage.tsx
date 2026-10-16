@@ -78,20 +78,7 @@ export const UploadedResumeAnalysisPage: React.FC = () => {
         formData.append('file', selectedFile);
         if (resumeTitle) formData.append('title', resumeTitle);
 
-        const token = localStorage.getItem('token');
-        const res = await fetch('/api/resumes/upload-and-analyze', {
-          method: 'POST',
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-          body: formData,
-        });
-
-        const data = await res.json();
-        if (!res.ok) {
-          throw new Error(data.message || 'Failed to upload and analyze resume.');
-        }
-        return data.data as AnalysisResponse;
+        return api.upload<AnalysisResponse>('/resumes/upload-and-analyze', formData);
       } else {
         return api.post<AnalysisResponse>('/resumes/upload-and-analyze', {
           text: resumeText.trim(),

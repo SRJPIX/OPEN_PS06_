@@ -587,7 +587,7 @@ describe('Placement Application Pipeline & Tracking System', () => {
 
       expect(res.status).toBe(409);
       expect(res.body.success).toBe(false);
-      expect(res.body.message).toContain('already applied');
+      expect(res.body.error?.message || res.body.message).toContain('already applied');
     });
 
     it('PREVENTS application to duplicate job pointing to the same canonical posting (Req #2)', async () => {
@@ -620,7 +620,7 @@ describe('Placement Application Pipeline & Tracking System', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.message).toContain('approved/generated resume');
+      expect(res.body.error?.message || res.body.message).toContain('approved/generated resume');
     });
 
     it('Student 2 can apply to company2Job with verified resume version', async () => {
@@ -651,7 +651,7 @@ describe('Placement Application Pipeline & Tracking System', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.message).toContain('not accepting applications');
+      expect(res.body.error?.message || res.body.message).toContain('not accepting applications');
     });
 
     it('PRESERVES applications even if the associated job is subsequently archived (Req #10)', async () => {
@@ -711,7 +711,7 @@ describe('Placement Application Pipeline & Tracking System', () => {
 
       expect(res.status).toBe(403);
       expect(res.body.success).toBe(false);
-      expect(res.body.message).toContain('forbidden');
+      expect(res.body.error?.message || res.body.message).toContain('forbidden');
     });
 
     it('PREVENTS unauthorized recruiter from viewing or updating applications for other companies (Req #6)', async () => {
@@ -817,7 +817,7 @@ describe('Placement Application Pipeline & Tracking System', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.message).toContain('Invalid status transition');
+      expect(res.body.error?.message || res.body.message).toContain('Invalid status transition');
     });
 
     it('Permits student to withdraw active application (Req #4, #5)', async () => {
@@ -844,7 +844,7 @@ describe('Placement Application Pipeline & Tracking System', () => {
 
       expect(res.status).toBe(400);
       expect(res.body.success).toBe(false);
-      expect(res.body.message).toContain('already been withdrawn');
+      expect(res.body.error?.message || res.body.message).toContain('already been withdrawn');
     });
 
     it('Lists and filters applications for placement officer with pagination (Req #11)', async () => {

@@ -137,18 +137,7 @@ export const ResumeBuilderPage: React.FC = () => {
     if (!activeResume) return;
     try {
       setIsDownloadingPdf(true);
-      const token = localStorage.getItem('token');
-      const res = await fetch(`/api/resumes/${activeResume._id}/pdf`, {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-
-      if (!res.ok) {
-        throw new Error(`Failed to download PDF (${res.status} ${res.statusText})`);
-      }
-
-      const blob = await res.blob();
+      const blob = await api.getBlob(`/resumes/${activeResume._id}/pdf`);
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

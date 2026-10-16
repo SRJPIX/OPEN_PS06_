@@ -29,10 +29,10 @@ export class ApiClientError extends Error {
 }
 
 const getBaseUrl = (): string => {
-  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  const envUrl = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
   if (envUrl) {
-    // Trim trailing slash
-    return envUrl.replace(/\/+$/, '');
+    const trimmed = envUrl.replace(/\/+$/, '');
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
   }
   return '/api';
 };
@@ -164,5 +164,48 @@ export const api = {
 
   delete: <T>(endpoint: string, options?: RequestInit) =>
     request<T>(endpoint, { ...options, method: 'DELETE' }),
+
+  getBlob: async (endpoint: string, options?: RequestInit): Promise<Blob> => {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${BASE_URL}${cleanEndpoint}`;
+    const response = await fetch(url, {
+      ...options,
+      credentials: 'include',
+    });
+    if (!response.ok) {
+      throw new ApiClientError(
+        response.status,
+        'DOWNLOAD_FAILED',
+        `Failed to download resource (${response.status} ${response.statusText})`
+      );
+    }
+    return response.blob();
+  },
+
+  upload: async <T>(endpoint: string, formData: FormData, options?: RequestInit): Promise<T> => {
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const url = `${BASE_URL}${cleanEndpoint}`;
+    const response = await fetch(url, {
+      ...options,
+      method: 'POST',
+      body: formData,
+      credentials: 'include',
+    });
+    const json = await response.json();
+    if (!response.ok) {
+      throw new ApiClientError(
+        response.status,
+        json.error?.code || 'UPLOAD_FAILED',
+        json.error?.message || json.message || `Upload failed with status ${response.status}`,
+        json.error?.details
+      );
+    }
+    return (json.data !== undefined ? json.data : json) as T;
+  },
+};
+
+export const getApiUrl = (endpoint: string): string => {
+  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+  return `${BASE_URL}${cleanEndpoint}`;
 };
 

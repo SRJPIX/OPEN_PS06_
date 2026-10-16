@@ -22,13 +22,39 @@ import { sendSuccess } from './utils/apiResponse';
 export const createApp = (): Application => {
   const app = express();
 
+  // Enable trust proxy for Render, Vercel, and reverse proxy deployments
+  app.set('trust proxy', 1);
+
   // 1. Security Headers via Helmet
   app.use(helmet());
 
-  // 2. CORS - Allow configured frontend with credentials for HTTP-only cookies
+  // 2. CORS - Allow configured frontend(s) with credentials for HTTP-only cookies
+  const allowedOrigins = (config.CLIENT_URL || '')
+    .split(',')
+    .map((url) => url.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
+
   app.use(
     cors({
-      origin: config.CLIENT_URL,
+      origin: (origin, callback) => {
+        // Allow non-browser requests (Postman, curl, internal checks)
+        if (!origin) return callback(null, true);
+        const cleanOrigin = origin.replace(/\/+$/, '');
+        if (
+          allowedOrigins.includes(cleanOrigin) ||
+          (config.NODE_ENV !== 'production' && cleanOrigin.includes('localhost'))
+        ) {
+          return callback(null, true);
+        }
+        // Allow Vercel preview deployments if production client URL contains vercel.app
+        if (
+          allowedOrigins.some((u) => u.includes('vercel.app')) &&
+          /^https:\/\/[a-z0-9-]+(?:\.[a-z0-9-]+)*\.vercel\.app$/i.test(cleanOrigin)
+        ) {
+          return callback(null, true);
+        }
+        return callback(null, false);
+      },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
@@ -72,10 +98,11 @@ export const createApp = (): Application => {
     });
   });
 
-  // 7. Health & Readiness Routes
+  // 7. Health & Readiness Routes (supports both /health and /api/health)
   app.use('/api/health', healthRoutes);
-  // Direct readiness alias for GET /api/ready
-  app.use('/api/ready', (req: Request, res: Response, next) => {
+  app.use('/health', healthRoutes);
+  // Direct readiness alias for GET /ready and GET /api/ready
+  app.use(['/api/ready', '/ready'], (req: Request, res: Response, next) => {
     req.url = '/ready';
     return healthRoutes(req, res, next);
   });

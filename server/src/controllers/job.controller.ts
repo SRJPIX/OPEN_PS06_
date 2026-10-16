@@ -112,7 +112,7 @@ export const createJob = async (req: Request, res: Response, next: NextFunction)
       sourceUrl: data.sourceUrl,
     });
 
-    if (exactDupCheck.isDuplicate) {
+    if (exactDupCheck.isDuplicate && data.sourceType !== 'partner_posting' && data.status !== 'draft') {
       sendError(
         res,
         'DUPLICATE_JOB',
@@ -202,9 +202,12 @@ export const createJob = async (req: Request, res: Response, next: NextFunction)
     await job.populate('requiredSkills', 'name slug category');
     await job.populate('preferredSkills', 'name slug category');
 
+    const jobObj = job.toObject();
+
     sendSuccess(
       res,
       {
+        ...jobObj,
         job,
         duplicateSuggestions: potentialDups.length > 0 ? potentialDups : undefined,
       },

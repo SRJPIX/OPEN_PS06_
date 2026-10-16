@@ -138,6 +138,14 @@ export const seedDemoUsers = async (): Promise<ComprehensiveSeedResult> => {
     isEmailVerified: true,
   });
 
+  const defaultRecruiter = await User.create({
+    email: 'recruiter@evidra.dev',
+    passwordHash,
+    role: 'recruiter',
+    status: 'active',
+    isEmailVerified: true,
+  });
+
   const recruiter2 = await User.create({
     email: 'recruiter.nexus@evidra-demo.dev',
     passwordHash,
@@ -163,7 +171,7 @@ export const seedDemoUsers = async (): Promise<ComprehensiveSeedResult> => {
     description: 'Pioneering intelligent enterprise platforms and developer productivity suites.',
     isVerified: true,
     createdBy: recruiter1._id,
-    authorizedRecruiters: [recruiter1._id as Types.ObjectId],
+    authorizedRecruiters: [recruiter1._id as Types.ObjectId, defaultRecruiter._id as Types.ObjectId],
   });
 
   const company2 = await Company.create({
@@ -1358,7 +1366,7 @@ export const seedDemoUsers = async (): Promise<ComprehensiveSeedResult> => {
   return {
     officer: officerUser.email,
     admin: adminUser.email,
-    recruiters: [recruiter1.email, recruiter2.email, recruiter3.email],
+    recruiters: [defaultRecruiter.email, recruiter1.email, recruiter2.email, recruiter3.email],
     students: createdStudentUsers.map((u) => u.email),
     companiesCount: 3,
     jobsCount: 7,

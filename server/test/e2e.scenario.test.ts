@@ -75,6 +75,9 @@ describe('Evidra End-to-End Hackathon Demonstration Scenario (11 Steps)', () => 
     await StudentProfile.deleteMany({ _id: { $in: profileIds } });
     await Job.deleteMany({ company: { $in: companyIds } });
     await Company.deleteMany({ _id: { $in: companyIds } });
+    await JobSource.deleteMany({
+      name: { $in: ['University Placement Portal', 'Partner Consortium Feed'] },
+    });
     await User.deleteMany({ _id: { $in: userIds } });
   };
 
@@ -172,6 +175,21 @@ describe('Evidra End-to-End Hackathon Demonstration Scenario (11 Steps)', () => 
         reviewedAt: new Date(),
       });
 
+      const ev3 = await Evidence.create({
+        student: studentProfile._id,
+        skills: [tailwindSkill._id],
+        type: 'evaluated_project',
+        title: 'Responsive Design System in Tailwind',
+        url: 'https://github.com/alice-chen/tailwind-components',
+        status: 'verified',
+        isVerified: true,
+        score: 96,
+        maxScore: 100,
+        reviewedBy: officerUser._id,
+        reviewedAt: new Date(),
+        feedback: 'Demonstrated exceptional utility-first styling and theme tokens.',
+      });
+
       await StudentSkill.create([
         {
           student: studentProfile._id,
@@ -190,6 +208,15 @@ describe('Evidra End-to-End Hackathon Demonstration Scenario (11 Steps)', () => 
           isVerified: true,
           confidenceScore: 92,
           evidence: [ev2._id],
+        },
+        {
+          student: studentProfile._id,
+          skill: tailwindSkill._id,
+          proficiency: 'expert',
+          status: 'verified',
+          isVerified: true,
+          confidenceScore: 96,
+          evidence: [ev3._id],
         },
       ]);
     }
