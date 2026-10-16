@@ -339,3 +339,77 @@ title,company,description,location,workplaceType,jobType,requisitionId,sourceUrl
    - Evaluates weighted token similarity across company, normalized title, location, and description text. Suggests candidate postings when score $\ge 0.65$.
 4. **Source Provenance & Merge Tracking**:
    - Merging duplicate postings archives the duplicate, unions distinct skill requirements, and preserves full source audit trail inside `primaryJob.provenance.mergedFrom`.
+
+---
+
+## Job Management & Ingestion System
+
+Evidra supports end-to-end job ingestion, structured parsing, RFC 4180 CSV batch importing, exact and similarity duplicate detection, and source provenance tracking.
+
+### API Endpoints
+
+| Method | Endpoint | Allowed Roles | Description |
+|---|---|---|---|
+| `GET` | `/api/jobs` | Public / All | Browse jobs (Students see published `open` jobs; Recruiters see company jobs; Officers see all) |
+| `GET` | `/api/jobs/:id` | Public / All | View detailed job listing with populated skills, company and source |
+| `POST` | `/api/jobs` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Create job listing (recruiters restricted to authorized companies) |
+| `PUT` | `/api/jobs/:id` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Edit job listing |
+| `PATCH` | `/api/jobs/:id/archive` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Archive job listing |
+| `POST` | `/api/jobs/parse` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Parse raw job description text into structured fields using deterministic rules or LLM |
+| `POST` | `/api/jobs/import/csv` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Ingest CSV job postings with row-level validation and error logging |
+| `GET` | `/api/jobs/:id/duplicates` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Fetch similarity-based duplicate suggestions for a posting |
+| `POST` | `/api/jobs/merge` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Merge duplicate posting into primary job, preserving source provenance |
+| `GET` | `/api/jobs/sources` | Authenticated | List registered job source channels |
+| `POST` | `/api/jobs/sources` | `PLACEMENT_OFFICER`, `ADMIN` | Register new job source channel |
+
+---
+
+### Accepted CSV Job Import Format
+
+The CSV importer supports RFC 4180 format (quoted fields, commas, escaped quotes, multiline descriptions). Both raw CSV content (`Content-Type: text/csv`) and JSON payloads (`{ "csvContent": "..." }`) are supported at `POST /api/jobs/import/csv`.
+
+#### Column Headers & Supported Aliases
+
+| Header | Supported Aliases | Required | Type / Values | Description & Example |
+|---|---|---|---|---|
+| `title` | `job_title`, `position`, `role` | **Yes** | String | Job title (e.g., `"Senior Backend Engineer"`) |
+| `company` | `company_name`, `organization` | **Yes** | String / ObjectId | Company name or ID (e.g., `"Google"`, `"Evidra Partner Labs"`) |
+| `description` | `job_description`, `details` | **Yes** | String | Full job description text (multiline supported in quotes) |
+| `location` | `city`, `work_location` | No | String (Default: `"Remote"`) | Work city or location (e.g., `"Bengaluru"`, `"Remote"`) |
+| `workplaceType` | `work_mode`, `workmode` | No | `remote`, `hybrid`, `on_site` | Workplace mode (Default: `"on_site"`) |
+| `jobType` | `job_type`, `type` | No | `full_time`, `internship`, `part_time`, `contract` | Job contract type (Default: `"full_time"`) |
+| `requisitionId` | `requisition_id`, `req_id`, `reqid` | No | String | Unique requisition ID for exact duplicate tracking (e.g., `"REQ-2026-042"`) |
+| `sourceUrl` | `source_url`, `url`, `link` | No | URL String | Canonical posting URL for exact duplicate tracking |
+| `sourceType` | `source_type`, `source` | No | `partner_posting`, `alumni_referral`, `manual_submission`, `api_source`, `campus_drive` | Provenance source category |
+| `requiredSkills` | `required_skills`, `skills` | No | Comma-separated Strings | Skills mapped to canonical dictionary (e.g., `"ReactJS, Node.js, TypeScript"`) |
+| `preferredSkills` | `preferred_skills` | No | Comma-separated Strings | Preferred skills (e.g., `"Docker, AWS, Kubernetes"`) |
+| `minCgpa` | `min_cgpa`, `cgpa` | No | Number (0.0 to 10.0) | Minimum CGPA cut-off requirement (e.g., `7.5`) |
+| `eligibleDepartments` | `departments`, `branches` | No | Comma-separated Strings | Branches eligible (e.g., `"CSE, IT, ECE"`) |
+| `eligibleGraduationYears` | `graduation_years`, `years` | No | Comma-separated Integers | Eligible graduating batches (e.g., `"2025, 2026"`) |
+| `salaryMin` | `salary_min`, `min_salary` | No | Number | Minimum base compensation in currency |
+| `salaryMax` | `salary_max`, `max_salary` | No | Number | Maximum base compensation in currency |
+| `salaryCurrency` | `salary_currency`, `currency` | No | String (Default: `"INR"`) | Currency code (e.g., `"INR"`, `"USD"`) |
+| `deadline` | `apply_by`, `last_date` | No | Date (`YYYY-MM-DD`) | Application deadline date |
+
+#### Example CSV Payload
+
+```csv
+title,company,description,location,workplaceType,jobType,requisitionId,sourceUrl,requiredSkills,preferredSkills,minCgpa,eligibleGraduationYears,deadline
+"Backend Engineer","Alpha Labs","Develop microservices in TypeScript and Node.js","Bengaluru","hybrid","full_time","REQ-001","https://alpha.dev/careers/1","NodeJS, TypeScript, Express","Docker, Redis",7.5,"2025, 2026","2026-12-31"
+"Frontend Developer","Beta Corp","Build responsive dashboards with React","Remote","remote","internship","REQ-002","https://beta.dev/jobs/2","ReactJS, Tailwind CSS","Git",8.0,"2026","2026-11-30"
+```
+
+---
+
+### Deduplication & Provenance Rules
+
+1. **Exact Duplicate Detection**:
+   - Matches identical `requisitionId` within the same company, or identical canonical `sourceUrl`.
+   - Returns `409 Conflict` on single creation; rejects row with exact duplicate note in CSV import.
+2. **Distinct Requisitions Safeguard**:
+   - Two jobs with distinct requisition IDs (e.g., `REQ-001` vs `REQ-002`) are **never** flagged as exact duplicates or automatically merged, even if their job titles and descriptions match.
+3. **Similarity Suggestions**:
+   - Evaluates weighted token similarity across company, normalized title, location, and description text. Suggests candidate postings when score $\ge 0.65$.
+4. **Source Provenance & Merge Tracking**:
+   - Merging duplicate postings archives the duplicate, unions distinct skill requirements, and preserves full source audit trail inside `primaryJob.provenance.mergedFrom`.
+
