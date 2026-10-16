@@ -6,6 +6,9 @@ import morgan from 'morgan';
 import { config } from './config/env';
 import healthRoutes from './routes/health.routes';
 import authRoutes from './routes/auth.routes';
+import studentRoutes from './routes/student.routes';
+import evidenceRoutes from './routes/evidence.routes';
+import skillRoutes from './routes/skill.routes';
 import { apiRateLimiter } from './middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { sendSuccess } from './utils/apiResponse';
@@ -50,6 +53,9 @@ export const createApp = (): Application => {
         health: '/api/health',
         ready: '/api/ready',
         auth: '/api/auth',
+        students: '/api/students',
+        evidence: '/api/evidence',
+        skills: '/api/skills',
       },
     });
   });
@@ -62,8 +68,11 @@ export const createApp = (): Application => {
     return healthRoutes(req, res, next);
   });
 
-  // 8. Authentication Routes
+  // 8. Application Domain Routes
   app.use('/api/auth', authRoutes);
+  app.use('/api/students', studentRoutes);
+  app.use('/api/evidence', evidenceRoutes);
+  app.use('/api/skills', skillRoutes);
 
   // 9. 404 Handler for undefined routes
   app.use(notFoundHandler);

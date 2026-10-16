@@ -17,7 +17,9 @@ export type SkillCategory = (typeof SKILL_CATEGORIES)[number];
 
 export interface ISkill extends Document {
   name: string;
+  slug: string;
   category: SkillCategory;
+  aliases: string[];
   description?: string;
   createdAt: Date;
   updatedAt: Date;
@@ -30,8 +32,23 @@ const skillSchema = new Schema<ISkill>(
       required: [true, 'Skill name is required'],
       unique: true,
       trim: true,
+      index: true,
+    },
+    slug: {
+      type: String,
+      required: [true, 'Skill slug is required'],
+      unique: true,
+      trim: true,
       lowercase: true,
       index: true,
+      default: function (this: ISkill) {
+        return this.name
+          ? this.name
+              .toLowerCase()
+              .replace(/\s+/g, '-')
+              .replace(/[^a-z0-9-]/g, '')
+          : undefined;
+      },
     },
     category: {
       type: String,
@@ -40,6 +57,11 @@ const skillSchema = new Schema<ISkill>(
         message: '{VALUE} is not a valid skill category',
       },
       default: 'other',
+      index: true,
+    },
+    aliases: {
+      type: [String],
+      default: [],
       index: true,
     },
     description: {

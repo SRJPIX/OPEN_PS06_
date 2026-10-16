@@ -3,6 +3,7 @@ import { User } from '../models/User';
 import { StudentProfile } from '../models/StudentProfile';
 import { Company } from '../models/Company';
 import { hashPassword } from './password';
+import { seedCanonicalSkills } from './skillNormalizer';
 
 export interface SeedResult {
   student: string;
@@ -20,11 +21,14 @@ export const seedDemoUsers = async (): Promise<SeedResult> => {
     throw new Error('[Seed Error] Demo user seeding is strictly prohibited in production mode.');
   }
 
-  console.log('[Seed] Seeding development demo accounts...');
+  console.log('[Seed] Seeding development demo accounts and canonical skills...');
+  // 1. Seed canonical skills dictionary
+  await seedCanonicalSkills();
+
   const defaultPassword = config.DEMO_USER_PASSWORD;
   const passwordHash = await hashPassword(defaultPassword);
 
-  // 1. Demo Student
+  // 2. Demo Student
   let studentUser = await User.findOne({ email: 'student@evidra.dev' });
   if (!studentUser) {
     studentUser = await User.create({
@@ -50,6 +54,16 @@ export const seedDemoUsers = async (): Promise<SeedResult> => {
       cgpa: 8.85,
       phone: '+91 9876543210',
       bio: 'Pre-final year CSE student interested in Fullstack & Distributed Systems.',
+      education: [
+        {
+          institution: 'Apex Institute of Technology',
+          degree: 'B.Tech',
+          fieldOfStudy: 'Computer Science & Engineering',
+          startYear: 2022,
+          endYear: 2026,
+          scoreOrCgpa: '8.85 CGPA',
+        },
+      ],
       links: {
         github: 'https://github.com/evidra-student',
         linkedin: 'https://linkedin.com/in/evidra-student',
@@ -57,7 +71,7 @@ export const seedDemoUsers = async (): Promise<SeedResult> => {
     });
   }
 
-  // 2. Demo Recruiter
+  // 3. Demo Recruiter
   let recruiterUser = await User.findOne({ email: 'recruiter@evidra.dev' });
   if (!recruiterUser) {
     recruiterUser = await User.create({
@@ -84,7 +98,7 @@ export const seedDemoUsers = async (): Promise<SeedResult> => {
     });
   }
 
-  // 3. Demo Placement Officer
+  // 4. Demo Placement Officer
   let officerUser = await User.findOne({ email: 'officer@evidra.dev' });
   if (!officerUser) {
     officerUser = await User.create({
@@ -99,7 +113,7 @@ export const seedDemoUsers = async (): Promise<SeedResult> => {
     await officerUser.save();
   }
 
-  // 4. Demo Admin
+  // 5. Demo Admin
   let adminUser = await User.findOne({ email: 'admin@evidra.dev' });
   if (!adminUser) {
     adminUser = await User.create({

@@ -123,7 +123,8 @@ describe('Mongoose Models Schema & Validation', () => {
       });
       const error = skill.validateSync();
       expect(error).toBeUndefined();
-      expect(skill.name).toBe('typescript'); // lowercased by schema
+      expect(skill.name).toBe('TypeScript');
+      expect(skill.slug).toBe('typescript');
     });
 
     it('should validate StudentSkill junction model', () => {

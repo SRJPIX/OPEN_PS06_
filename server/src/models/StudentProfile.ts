@@ -1,14 +1,24 @@
 import mongoose, { Document, Schema, Model, Types } from 'mongoose';
 
+export interface IEducationEntry {
+  institution: string;
+  degree: string;
+  fieldOfStudy?: string;
+  startYear?: number;
+  endYear?: number;
+  scoreOrCgpa?: string;
+}
+
 export interface IStudentProfile extends Document {
   user: Types.ObjectId;
   rollNumber: string;
-  department: string;
+  department: string; // Branch / Department
   degree: string;
   graduationYear: number;
   cgpa: number;
   phone?: string;
   bio?: string;
+  education?: IEducationEntry[];
   links: {
     github?: string;
     linkedin?: string;
@@ -17,6 +27,18 @@ export interface IStudentProfile extends Document {
   createdAt: Date;
   updatedAt: Date;
 }
+
+const educationEntrySchema = new Schema<IEducationEntry>(
+  {
+    institution: { type: String, required: true, trim: true },
+    degree: { type: String, required: true, trim: true },
+    fieldOfStudy: { type: String, trim: true },
+    startYear: { type: Number },
+    endYear: { type: Number },
+    scoreOrCgpa: { type: String, trim: true },
+  },
+  { _id: false }
+);
 
 const studentProfileSchema = new Schema<IStudentProfile>(
   {
@@ -37,7 +59,7 @@ const studentProfileSchema = new Schema<IStudentProfile>(
     },
     department: {
       type: String,
-      required: [true, 'Department is required'],
+      required: [true, 'Department (branch) is required'],
       trim: true,
       index: true,
     },
@@ -67,6 +89,10 @@ const studentProfileSchema = new Schema<IStudentProfile>(
       type: String,
       maxlength: [1000, 'Bio cannot exceed 1000 characters'],
       trim: true,
+    },
+    education: {
+      type: [educationEntrySchema],
+      default: [],
     },
     links: {
       github: { type: String, trim: true },
