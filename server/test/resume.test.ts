@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { Types } from 'mongoose';
 import { createApp } from '../src/app';
 import { connectDB } from '../src/config/db';
 import { User, IUser } from '../src/models/User';
@@ -45,10 +46,7 @@ describe('Evidra Resume: Truthful Generation, Validation, & Audit', () => {
     const testUsers = await User.find({ email: { $regex: /@resume-test\.com$/ } });
     const userIds = testUsers.map((u) => u._id);
     const profiles = await StudentProfile.find({
-      $or: [
-        { user: { $in: userIds } },
-        { rollNumber: { $in: ['RESUME202601', 'RESUME202602'] } },
-      ],
+      $or: [{ user: { $in: userIds } }, { rollNumber: { $in: ['RESUME202601', 'RESUME202602'] } }],
     });
     const profileIds = profiles.map((p) => p._id);
 
@@ -274,7 +272,15 @@ describe('Evidra Resume: Truthful Generation, Validation, & Audit', () => {
 
   // 2. Upload Restrictions
   describe('Upload Restrictions & File Validation', () => {
+    it('validates PDF magic bytes and rejects invalid or empty buffers in parser', async () => {
+      await expect(extractTextFromPdf(Buffer.from(''))).rejects.toThrow(/PDF buffer is empty/);
+      await expect(
+        extractTextFromPdf(Buffer.from('This is not a real PDF document.'))
+      ).rejects.toThrow(/Not a valid PDF document/);
+    });
+
     it('rejects non-PDF file upload with 400 Bad Request', async () => {
+      if (!dbAvailable) return;
       const res = await request(app)
         .post('/api/resumes/upload-and-analyze')
         .set('Cookie', student1Cookie)
@@ -285,6 +291,7 @@ describe('Evidra Resume: Truthful Generation, Validation, & Audit', () => {
     });
 
     it('rejects files exceeding 5MB limit with 400 Bad Request', async () => {
+      if (!dbAvailable) return;
       // 5.5 MB dummy buffer
       const largeBuffer = Buffer.alloc(5.5 * 1024 * 1024, 0x25); // filled with '%'
       const res = await request(app)
@@ -297,6 +304,7 @@ describe('Evidra Resume: Truthful Generation, Validation, & Audit', () => {
     });
 
     it('rejects corrupted or empty file buffers lacking %PDF magic bytes', async () => {
+      if (!dbAvailable) return;
       const corruptBuffer = Buffer.from('This is not a real PDF document.');
       const res = await request(app)
         .post('/api/resumes/upload-and-analyze')
@@ -350,7 +358,7 @@ describe('Evidra Resume: Truthful Generation, Validation, & Audit', () => {
       if (!dbAvailable) return;
 
       const claim = await ResumeClaim.create({
-        resume: new (require('mongoose').Types.ObjectId)(),
+        resume: new Types.ObjectId(),
         student: student1Profile._id,
         claimType: 'skill',
         text: 'AWS Cloud Architecture',
@@ -362,9 +370,7 @@ describe('Evidra Resume: Truthful Generation, Validation, & Audit', () => {
       });
 
       // Officer views claims
-      const listRes = await request(app)
-        .get('/api/resumes/claims')
-        .set('Cookie', officerCookie);
+      const listRes = await request(app).get('/api/resumes/claims').set('Cookie', officerCookie);
       expect(listRes.status).toBe(200);
 
       // Officer verifies claim
@@ -437,11 +443,14 @@ describe('Evidra Resume: Truthful Generation, Validation, & Audit', () => {
         item.text.toLowerCase().includes('python')
       );
       expect(pythonExcluded).toBeDefined();
-      expect(pythonExcluded.reason).toMatch(/omitted from ats resume:.*faculty\/institutional evidence in vault/i);
+      expect(pythonExcluded.reason).toMatch(
+        /omitted from ats resume:.*faculty\/institutional evidence in vault/i
+      );
 
       // Verify that skills included in resume only contain verified ones
-      const includedSkillNames = (resume.skills || [])
-        .flatMap((cat: any) => cat.skills.map((s: any) => s.name.toLowerCase()));
+      const includedSkillNames = (resume.skills || []).flatMap((cat: any) =>
+        cat.skills.map((s: any) => s.name.toLowerCase())
+      );
 
       expect(includedSkillNames).toContain('node.js');
       expect(includedSkillNames).not.toContain('python');
@@ -535,22 +544,22 @@ describe('Evidra Resume: Truthful Generation, Validation, & Audit', () => {
       const cgpaClaim = claims.find((c: any) => c.claimType === 'education');
       expect(cgpaClaim).toBeDefined();
       expect(cgpaClaim.validationStatus).toBe('CONTRADICTED');
-      expect(cgpaClaim.explanation).toMatch(/contradiction: resume claims cgpa 9.90.*conflicts with official/i);
+      expect(cgpaClaim.explanation).toMatch(
+        /contradiction: resume claims cgpa 9.90.*conflicts with official/i
+      );
 
       // Node.js is verified in vault -> SUPPORTED
-      const nodeClaim = claims.find(
-        (c: any) => c.text.toLowerCase().includes('node.js')
-      );
+      const nodeClaim = claims.find((c: any) => c.text.toLowerCase().includes('node.js'));
       expect(nodeClaim).toBeDefined();
       expect(nodeClaim.validationStatus).toBe('SUPPORTED');
 
       // Docker has no evidence in vault -> UNSUPPORTED (anti-prejudice rule: NOT contradicted)
-      const dockerClaim = claims.find(
-        (c: any) => c.text.toLowerCase().includes('docker')
-      );
+      const dockerClaim = claims.find((c: any) => c.text.toLowerCase().includes('docker'));
       expect(dockerClaim).toBeDefined();
       expect(dockerClaim.validationStatus).toBe('UNSUPPORTED');
-      expect(dockerClaim.explanation).toMatch(/unsupported:.*missing evidence does not imply false claim/i);
+      expect(dockerClaim.explanation).toMatch(
+        /unsupported:.*missing evidence does not imply false claim/i
+      );
     });
 
     it('allows student to correct claim, link evidence, and remove claim', async () => {

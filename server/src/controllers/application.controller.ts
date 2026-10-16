@@ -1,13 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import { Types } from 'mongoose';
 import { Application, ApplicationStatus } from '../models/Application';
-import { Application, ApplicationStatus, APPLICATION_STATUSES } from '../models/Application';
 import { ApplicationStatusHistory } from '../models/ApplicationStatusHistory';
 import { StudentProfile } from '../models/StudentProfile';
 import { Job } from '../models/Job';
 import { Resume } from '../models/Resume';
 import { Company, ICompany } from '../models/Company';
-<<<<<<< HEAD
 import { AuditLog } from '../models/AuditLog';
 import { ApiError } from '../utils/apiError';
 import { sendSuccess } from '../utils/apiResponse';
@@ -26,20 +24,11 @@ import {
   withdrawApplicationSchema,
   queryApplicationsSchema,
 } from '../validators/application.validator';
-import { User } from '../models/User';
-import { AuditLog } from '../models/AuditLog';
-import { ApiError } from '../utils/apiError';
-import { sendSuccess } from '../utils/apiResponse';
-import { isAuthorizedForCompany } from './job.controller';
 
 /**
  * Checks whether a user has permission to manage applications for a given company.
  */
-export const isAuthorizedForCompany = (
-  userId: string,
-  userRole: string,
-  company: any
-): boolean => {
+export const isAuthorizedForCompany = (userId: string, userRole: string, company: any): boolean => {
   if (userRole === 'admin' || userRole === 'placement_officer') {
     return true;
   }
@@ -292,11 +281,7 @@ export const getApplicationById = async (
       .populate('changedBy', 'email role')
       .sort({ changedAt: 1 });
 
-    sendSuccess(
-      res,
-      { application, history },
-      'Application details retrieved successfully'
-    );
+    sendSuccess(res, { application, history }, 'Application details retrieved successfully');
   } catch (error) {
     next(error);
   }
@@ -402,10 +387,7 @@ export const listApplications = async (
       const matchingJobs = await Job.find({ title: regex }).select('_id');
       const matchingJobIds = matchingJobs.map((j) => j._id);
 
-      filter.$or = [
-        { student: { $in: matchingProfileIds } },
-        { job: { $in: matchingJobIds } },
-      ];
+      filter.$or = [{ student: { $in: matchingProfileIds } }, { job: { $in: matchingJobIds } }];
     }
 
     const skip = (page - 1) * limit;
@@ -512,9 +494,7 @@ export const updateApplicationStatus = async (
 
     if (interviewDetails) {
       const existing =
-        (application.interviewDetails as any)?.toObject?.() ||
-        application.interviewDetails ||
-        {};
+        (application.interviewDetails as any)?.toObject?.() || application.interviewDetails || {};
       application.interviewDetails = {
         ...existing,
         ...interviewDetails,
@@ -526,9 +506,7 @@ export const updateApplicationStatus = async (
 
     if (offerDetails) {
       const existing =
-        (application.offerDetails as any)?.toObject?.() ||
-        application.offerDetails ||
-        {};
+        (application.offerDetails as any)?.toObject?.() || application.offerDetails || {};
       application.offerDetails = {
         ...existing,
         ...offerDetails,
@@ -611,7 +589,9 @@ export const updateInterviewDetails = async (
     const company = job?.company as ICompany;
 
     if (req.user.role === 'student') {
-      throw ApiError.forbidden('Students are not permitted to update interview schedules or details.');
+      throw ApiError.forbidden(
+        'Students are not permitted to update interview schedules or details.'
+      );
     }
 
     if (req.user.role === 'recruiter') {
@@ -635,9 +615,7 @@ export const updateInterviewDetails = async (
     }
 
     const existing =
-      (application.interviewDetails as any)?.toObject?.() ||
-      application.interviewDetails ||
-      {};
+      (application.interviewDetails as any)?.toObject?.() || application.interviewDetails || {};
     application.interviewDetails = {
       ...existing,
       ...validated,
@@ -654,7 +632,8 @@ export const updateInterviewDetails = async (
       toStatus: targetStatus,
       changedBy: req.user._id,
       changedByRole: req.user.role,
-      notes: validated.notes || `Interview details updated (Round: ${validated.round || 'Initial'})`,
+      notes:
+        validated.notes || `Interview details updated (Round: ${validated.round || 'Initial'})`,
       interviewDetails: application.interviewDetails,
       changedAt: new Date(),
     });
@@ -719,9 +698,7 @@ export const updateOfferDetails = async (
     }
 
     const existing =
-      (application.offerDetails as any)?.toObject?.() ||
-      application.offerDetails ||
-      {};
+      (application.offerDetails as any)?.toObject?.() || application.offerDetails || {};
     application.offerDetails = {
       ...existing,
       ...validated,
@@ -816,11 +793,7 @@ export const withdrawApplication = async (
       userAgent: req.headers['user-agent'],
     }).catch((err) => console.error('[AuditLog] Failed to log withdrawal:', err));
 
-    sendSuccess(
-      res,
-      { application, history: historyRecord },
-      'Application withdrawn successfully'
-    );
+    sendSuccess(res, { application, history: historyRecord }, 'Application withdrawn successfully');
   } catch (error) {
     next(error);
   }
@@ -908,10 +881,7 @@ export const exportApplicationsCsv = async (
     const csvData = exportApplicationsToCsv(applications);
 
     res.setHeader('Content-Type', 'text/csv');
-    res.setHeader(
-      'Content-Disposition',
-      'attachment; filename="evidra-applications-export.csv"'
-    );
+    res.setHeader('Content-Disposition', 'attachment; filename="evidra-applications-export.csv"');
     res.status(200).send(csvData);
   } catch (error) {
     next(error);
@@ -1011,210 +981,6 @@ export const getPlacementApplicationStats = async (
       },
       'Placement pipeline statistics calculated successfully'
     );
-  } catch (error) {
-    next(error);
-  }
-};
-
-const ALLOWED_FORWARD_TRANSITIONS: Record<string, string[]> = {
-  applied: ['screening', 'rejected', 'withdrawn'],
-  screening: ['shortlisted', 'rejected', 'withdrawn'],
-  shortlisted: ['assessment', 'interview', 'rejected', 'withdrawn'],
-  assessment: ['interview', 'rejected', 'withdrawn'],
-  interview: ['offered', 'rejected', 'withdrawn'],
-  offered: ['rejected', 'withdrawn'],
-  rejected: ['applied', 'screening', 'shortlisted'],
-  withdrawn: [],
-};
-
-/**
- * GET /api/applications
- * Placement officer & recruiter: list applications with filters, pagination, and search.
- */
-export const listApplications = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    if (!req.user) throw ApiError.unauthorized('Authentication required.');
-
-    const page = parseInt(req.query.page as string, 10) || 1;
-    const limit = parseInt(req.query.limit as string, 10) || 10;
-    const status = req.query.status as string;
-    const jobId = req.query.jobId as string;
-    const studentId = req.query.studentId as string;
-    const department = req.query.department as string;
-    const search = req.query.search as string;
-
-    const query: Record<string, unknown> = {};
-
-    if (status && status !== 'all') {
-      query.currentStatus = status;
-    }
-    if (jobId && Types.ObjectId.isValid(jobId)) {
-      query.job = new Types.ObjectId(jobId);
-    }
-    if (studentId && Types.ObjectId.isValid(studentId)) {
-      query.student = new Types.ObjectId(studentId);
-    }
-
-    // If recruiter, filter by authorized companies
-    if (req.user.role === 'recruiter') {
-      const authorizedCompanies = await Company.find({
-        $or: [
-          { createdBy: req.user.userId },
-          { authorizedRecruiters: req.user.userId },
-        ],
-      }).select('_id');
-      const companyIds = authorizedCompanies.map((c) => c._id);
-      const authorizedJobs = await Job.find({ company: { $in: companyIds } }).select('_id');
-      const jobIds = authorizedJobs.map((j) => j._id);
-      query.job = { $in: jobIds };
-    }
-
-    if (department) {
-      const studentProfiles = await StudentProfile.find({
-        department: { $regex: department.trim(), $options: 'i' },
-      }).select('_id');
-      query.student = { $in: studentProfiles.map((p) => p._id) };
-    }
-
-    if (search && search.trim()) {
-      const trimmed = search.trim();
-      const [matchingUsers, matchingJobs] = await Promise.all([
-        User.find({ email: { $regex: trimmed, $options: 'i' } }).select('_id'),
-        Job.find({ title: { $regex: trimmed, $options: 'i' } }).select('_id'),
-      ]);
-      const userIds = matchingUsers.map((u) => u._id);
-      const matchingProfiles = await StudentProfile.find({
-        $or: [
-          { rollNumber: { $regex: trimmed, $options: 'i' } },
-          { user: { $in: userIds } },
-        ],
-      }).select('_id');
-
-      query.$or = [
-        { student: { $in: matchingProfiles.map((p) => p._id) } },
-        { job: { $in: matchingJobs.map((j) => j._id) } },
-      ];
-    }
-
-    const skip = (page - 1) * limit;
-
-    const [applications, total] = await Promise.all([
-      Application.find(query)
-        .populate({
-          path: 'job',
-          select: 'title workplaceType jobType location status',
-          populate: { path: 'company', select: 'name logoUrl industry' },
-        })
-        .populate({
-          path: 'student',
-          select: 'rollNumber department degree graduationYear cgpa',
-          populate: { path: 'user', select: 'email' },
-        })
-        .populate('resume', 'title version status isPrimary')
-        .sort({ appliedAt: -1 })
-        .skip(skip)
-        .limit(limit),
-      Application.countDocuments(query),
-    ]);
-
-    const totalPages = Math.ceil(total / limit) || 1;
-
-    sendSuccess(res, applications, 'Applications retrieved successfully', 200, {
-      page,
-      limit,
-      total,
-      totalPages,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * PATCH /api/applications/:id/status
- * Transition an application to a new status with validation, history logging, and audit tracking.
- */
-export const updateApplicationStatus = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    if (!req.user) throw ApiError.unauthorized('Authentication required.');
-
-    const id = req.params.id as string;
-    if (!id || !Types.ObjectId.isValid(id)) {
-      throw ApiError.badRequest('Invalid application ID format.');
-    }
-
-    const { toStatus, notes } = req.body as { toStatus: ApplicationStatus; notes?: string };
-
-    if (!toStatus || !APPLICATION_STATUSES.includes(toStatus)) {
-      throw ApiError.badRequest(
-        `Invalid application status: '${toStatus}'. Valid statuses are: ${APPLICATION_STATUSES.join(', ')}`
-      );
-    }
-
-    const application = await Application.findById(id).populate({
-      path: 'job',
-      populate: { path: 'company' },
-    });
-    if (!application) throw ApiError.notFound('Application not found.');
-
-    const job = application.job as unknown as { company: ICompany };
-    if (req.user.role === 'recruiter') {
-      if (!job || !isAuthorizedForCompany(req.user.userId, req.user.role, job.company)) {
-        throw ApiError.forbidden(
-          'Forbidden: You are not authorized to update applications for this job.'
-        );
-      }
-    }
-
-    const current = application.currentStatus;
-    if (current === toStatus) {
-      sendSuccess(res, application, 'Application is already at the target status');
-      return;
-    }
-
-    // Backend authoritative transition check
-    const allowed = ALLOWED_FORWARD_TRANSITIONS[current] || [];
-    const isOfficerOrAdmin = req.user.role === 'placement_officer' || req.user.role === 'admin';
-
-    if (!allowed.includes(toStatus) && !isOfficerOrAdmin) {
-      throw ApiError.badRequest(
-        `Invalid status transition from '${current}' to '${toStatus}'. Allowed transitions: ${allowed.join(', ')}`
-      );
-    }
-
-    const previousStatus = application.currentStatus;
-    application.currentStatus = toStatus;
-    await application.save();
-
-    const history = await ApplicationStatusHistory.create({
-      application: application._id,
-      fromStatus: previousStatus,
-      toStatus,
-      changedBy: req.user._id,
-      notes: notes || `Status changed from ${previousStatus} to ${toStatus}`,
-      changedAt: new Date(),
-    });
-
-    // Audit log
-    AuditLog.create({
-      user: req.user._id,
-      action: 'APPLICATION_STATUS_UPDATED',
-      entityType: 'Application',
-      entityId: application._id.toString(),
-      ipAddress: req.ip,
-      userAgent: req.headers['user-agent'],
-      details: { fromStatus: previousStatus, toStatus, notes },
-    }).catch((err) => console.error('[AuditLog] Application status update log failed:', err));
-
-    sendSuccess(res, { application, history }, `Application status transitioned to ${toStatus}`);
   } catch (error) {
     next(error);
   }

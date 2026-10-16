@@ -41,14 +41,16 @@ export const buildTruthfulResumeData = async (
   const fullName = profile.rollNumber ? `${profile.rollNumber}` : 'Student Candidate';
 
   let targetJob: IJob | null = null;
-  let jobRequiredSkillIds = new Set<string>();
-  let jobPreferredSkillIds = new Set<string>();
+  const jobRequiredSkillIds = new Set<string>();
+  const jobPreferredSkillIds = new Set<string>();
 
   if (jobId && Types.ObjectId.isValid(jobId)) {
     targetJob = await Job.findById(jobId).populate('company', 'name');
     if (targetJob) {
       (targetJob.requiredSkills || []).forEach((sk: any) => jobRequiredSkillIds.add(sk.toString()));
-      (targetJob.preferredSkills || []).forEach((sk: any) => jobPreferredSkillIds.add(sk.toString()));
+      (targetJob.preferredSkills || []).forEach((sk: any) =>
+        jobPreferredSkillIds.add(sk.toString())
+      );
     }
   }
 
@@ -131,15 +133,24 @@ export const buildTruthfulResumeData = async (
       excludedItems.push({
         type: 'skill',
         text: `Skill: ${skillDoc.name} (${s.proficiency || 'self-reported'})`,
-        reason: 'Omitted from ATS resume: skill claim does not have verified faculty/institutional evidence in vault.',
+        reason:
+          'Omitted from ATS resume: skill claim does not have verified faculty/institutional evidence in vault.',
       });
     }
   }
 
   // Sort verified skills: target job required skills first, then preferred, then others
   verifiedSkillsList.sort((a, b) => {
-    const aReq = jobRequiredSkillIds.has(a.skillId.toString()) ? 2 : jobPreferredSkillIds.has(a.skillId.toString()) ? 1 : 0;
-    const bReq = jobRequiredSkillIds.has(b.skillId.toString()) ? 2 : jobPreferredSkillIds.has(b.skillId.toString()) ? 1 : 0;
+    const aReq = jobRequiredSkillIds.has(a.skillId.toString())
+      ? 2
+      : jobPreferredSkillIds.has(a.skillId.toString())
+        ? 1
+        : 0;
+    const bReq = jobRequiredSkillIds.has(b.skillId.toString())
+      ? 2
+      : jobPreferredSkillIds.has(b.skillId.toString())
+        ? 1
+        : 0;
     return bReq - aReq;
   });
 
@@ -169,7 +180,9 @@ export const buildTruthfulResumeData = async (
 
     if (projEvidence.length > 0) {
       // Calculate relevance score against target job
-      const projSkillIds = (proj.skills || []).map((sk: any) => sk._id?.toString() || sk.toString());
+      const projSkillIds = (proj.skills || []).map(
+        (sk: any) => sk._id?.toString() || sk.toString()
+      );
       let relevanceScore = 0;
       for (const sId of projSkillIds) {
         if (jobRequiredSkillIds.has(sId)) relevanceScore += 3;
@@ -219,7 +232,8 @@ export const buildTruthfulResumeData = async (
       excludedItems.push({
         type: 'project',
         text: `Project: ${proj.title}`,
-        reason: 'Omitted from ATS resume: project repository/deliverable does not have approved verification artifacts.',
+        reason:
+          'Omitted from ATS resume: project repository/deliverable does not have approved verification artifacts.',
       });
     }
   }
@@ -315,7 +329,10 @@ export const buildTruthfulResumeData = async (
       : `${effectiveRole} Resume`);
 
   const summary = `Fact-checked ${profile.degree} candidate in ${profile.department} (CGPA: ${profile.cgpa}/10). Demonstrates verified technical competence in ${
-    verifiedSkillsList.slice(0, 5).map((s) => s.name).join(', ') || 'software engineering'
+    verifiedSkillsList
+      .slice(0, 5)
+      .map((s) => s.name)
+      .join(', ') || 'software engineering'
   } backed by reviewed project codebases and validated academic evaluations.`;
 
   return {
@@ -337,7 +354,15 @@ export const buildTruthfulResumeData = async (
         totalEvidenceConsidered: verifiedEvidenceList.length,
         supportedBulletsCount: bullets.length,
         omittedClaimsCount: excludedItems.length,
-        fitScore: targetJob ? Math.min(100, Math.round((verifiedSkillsList.length / Math.max(1, (targetJob.requiredSkills || []).length)) * 100)) : 85,
+        fitScore: targetJob
+          ? Math.min(
+              100,
+              Math.round(
+                (verifiedSkillsList.length / Math.max(1, (targetJob.requiredSkills || []).length)) *
+                  100
+              )
+            )
+          : 85,
         generatedAt: new Date(),
       },
     },
