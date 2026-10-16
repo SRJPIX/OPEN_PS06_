@@ -8,4 +8,3 @@ router.get('/', requireAuth, listJobSources);
 router.post('/', requireAuth, requireRole('placement_officer', 'admin'), createJobSource);
 
 export default router;
-

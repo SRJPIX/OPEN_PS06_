@@ -342,25 +342,91 @@ title,company,description,location,workplaceType,jobType,requisitionId,sourceUrl
 
 ---
 
+## Explainable Evidence-Based Matching Engine
+
+Evidra implements a transparent, deterministic matching engine operating directly on verified database records.
+
+### Mathematical Scoring Formula
+
+$$\text{Fit Score} = 100 \times \frac{\sum (w_i \times e_i)}{\sum w_i}$$
+
+Where:
+
+- $w_i$ is the skill importance weight:
+  - Required skills: $w_i = 3$ (configurable)
+  - Preferred skills: $w_i = 1$ (configurable)
+- $e_i \in [0, 1]$ is the verified evidence match value for skill $i$.
+
+### Evidence Contribution & Anti-Fraud Tiers
+
+| Evidence Type                          | Verification Condition              | Proficiency Contribution ($p$)            |
+| -------------------------------------- | ----------------------------------- | ----------------------------------------- |
+| **Coding Assessment**                  | Score $\ge 85\%$ (Officer Reviewed) | $1.00$ (High demonstrated proficiency)    |
+| **Coding Assessment**                  | Score $70\% - 84\%$                 | $0.85$                                    |
+| **Coding Assessment**                  | Score $50\% - 69\%$                 | $0.65$                                    |
+| **Coding Assessment**                  | Passed without numerical score      | $0.80$                                    |
+| **Evaluated Project**                  | Score $\ge 80\%$ (Officer Reviewed) | $0.90$                                    |
+| **Evaluated Project**                  | Score $60\% - 79\%$                 | $0.75$                                    |
+| **Evaluated Project**                  | Passed without numerical score      | $0.75$                                    |
+| **Technical Quiz**                     | Score ratio (Officer Reviewed)      | $\min(0.85, \max(0.40, s))$               |
+| **Verified Certification**             | Officer Reviewed & Verified         | $0.75$                                    |
+| **GitHub Repository**                  | Officer Reviewed & Evaluated        | $0.65$ (or evaluated score ratio)         |
+| **Unreviewed Evidence / Raw Repo URL** | Any unverified submission           | **$0.00$** (Strictly excluded)            |
+| **Self-Reported Skill Claim**          | Without reviewed proof              | **$0.00$** (Flagged as Unsupported Claim) |
+
+- **Multi-Evidence Aggregation**: Multiple distinct items for a single skill combine with diminishing returns: $e_i = \min(1.0, p_1 + 0.25 p_2 + 0.1 p_3)$.
+- **Anti-Duplication**: Duplicate submissions sharing identical URLs or IDs are deduplicated to prevent score inflation.
+
+### Academic Eligibility Invariants
+
+Eligibility criteria (CGPA, graduation year, department) are evaluated **strictly independently** from skill fit scores:
+
+- `MET`: All mandatory job criteria satisfied.
+- `NOT_MET`: One or more mandatory criteria failed (e.g. CGPA below minimum).
+- `UNKNOWN`: Required student record missing.
+
+> [!IMPORTANT]
+> **Core Invariant**: A high skill fit score **never** overrides a failed mandatory criterion. Candidates failing mandatory criteria are classified as `NOT_MET`.
+
+### Deterministic Tie-Breaking Order
+
+1. **Eligibility Status**: `MET` > `UNKNOWN` > `NOT_MET`
+2. **Fit Score**: Higher score first
+3. **Supported Required Skills Count**: More verified required skills first
+4. **Total Supported Skills Count**: More verified total skills first
+5. **Academic CGPA**: Higher CGPA first
+6. **Student Profile ID**: Lexicographical tie-breaker guaranteeing 100% deterministic, immutable ranking order.
+
+### Matching API Endpoints
+
+| Method | Endpoint                                        | Allowed Roles                             | Description                                                   |
+| ------ | ----------------------------------------------- | ----------------------------------------- | ------------------------------------------------------------- |
+| `GET`  | `/api/matching/jobs/:jobId/rank`                | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Batch-rank candidates with explanations, gaps and filters     |
+| `GET`  | `/api/matching/jobs/:jobId/export/csv`          | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Export batch rankings to downloadable RFC 4180 CSV            |
+| `GET`  | `/api/matching/jobs/:jobId/students/:studentId` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Detailed candidate match analysis with evidence links         |
+| `GET`  | `/api/matching/jobs/:jobId/my-fit`              | `STUDENT`                                 | Authenticated student inspects personal fit for published job |
+
+---
+
 ## Job Management & Ingestion System
 
 Evidra supports end-to-end job ingestion, structured parsing, RFC 4180 CSV batch importing, exact and similarity duplicate detection, and source provenance tracking.
 
 ### API Endpoints
 
-| Method | Endpoint | Allowed Roles | Description |
-|---|---|---|---|
-| `GET` | `/api/jobs` | Public / All | Browse jobs (Students see published `open` jobs; Recruiters see company jobs; Officers see all) |
-| `GET` | `/api/jobs/:id` | Public / All | View detailed job listing with populated skills, company and source |
-| `POST` | `/api/jobs` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Create job listing (recruiters restricted to authorized companies) |
-| `PUT` | `/api/jobs/:id` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Edit job listing |
-| `PATCH` | `/api/jobs/:id/archive` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Archive job listing |
-| `POST` | `/api/jobs/parse` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Parse raw job description text into structured fields using deterministic rules or LLM |
-| `POST` | `/api/jobs/import/csv` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Ingest CSV job postings with row-level validation and error logging |
-| `GET` | `/api/jobs/:id/duplicates` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Fetch similarity-based duplicate suggestions for a posting |
-| `POST` | `/api/jobs/merge` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Merge duplicate posting into primary job, preserving source provenance |
-| `GET` | `/api/jobs/sources` | Authenticated | List registered job source channels |
-| `POST` | `/api/jobs/sources` | `PLACEMENT_OFFICER`, `ADMIN` | Register new job source channel |
+| Method  | Endpoint                   | Allowed Roles                             | Description                                                                                     |
+| ------- | -------------------------- | ----------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `GET`   | `/api/jobs`                | Public / All                              | Browse jobs (Students see published `open` jobs; Recruiters see company jobs; Officers see all) |
+| `GET`   | `/api/jobs/:id`            | Public / All                              | View detailed job listing with populated skills, company and source                             |
+| `POST`  | `/api/jobs`                | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Create job listing (recruiters restricted to authorized companies)                              |
+| `PUT`   | `/api/jobs/:id`            | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Edit job listing                                                                                |
+| `PATCH` | `/api/jobs/:id/archive`    | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Archive job listing                                                                             |
+| `POST`  | `/api/jobs/parse`          | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Parse raw job description text into structured fields using deterministic rules or LLM          |
+| `POST`  | `/api/jobs/import/csv`     | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Ingest CSV job postings with row-level validation and error logging                             |
+| `GET`   | `/api/jobs/:id/duplicates` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Fetch similarity-based duplicate suggestions for a posting                                      |
+| `POST`  | `/api/jobs/merge`          | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Merge duplicate posting into primary job, preserving source provenance                          |
+| `GET`   | `/api/jobs/sources`        | Authenticated                             | List registered job source channels                                                             |
+| `POST`  | `/api/jobs/sources`        | `PLACEMENT_OFFICER`, `ADMIN`              | Register new job source channel                                                                 |
 
 ---
 
@@ -370,26 +436,26 @@ The CSV importer supports RFC 4180 format (quoted fields, commas, escaped quotes
 
 #### Column Headers & Supported Aliases
 
-| Header | Supported Aliases | Required | Type / Values | Description & Example |
-|---|---|---|---|---|
-| `title` | `job_title`, `position`, `role` | **Yes** | String | Job title (e.g., `"Senior Backend Engineer"`) |
-| `company` | `company_name`, `organization` | **Yes** | String / ObjectId | Company name or ID (e.g., `"Google"`, `"Evidra Partner Labs"`) |
-| `description` | `job_description`, `details` | **Yes** | String | Full job description text (multiline supported in quotes) |
-| `location` | `city`, `work_location` | No | String (Default: `"Remote"`) | Work city or location (e.g., `"Bengaluru"`, `"Remote"`) |
-| `workplaceType` | `work_mode`, `workmode` | No | `remote`, `hybrid`, `on_site` | Workplace mode (Default: `"on_site"`) |
-| `jobType` | `job_type`, `type` | No | `full_time`, `internship`, `part_time`, `contract` | Job contract type (Default: `"full_time"`) |
-| `requisitionId` | `requisition_id`, `req_id`, `reqid` | No | String | Unique requisition ID for exact duplicate tracking (e.g., `"REQ-2026-042"`) |
-| `sourceUrl` | `source_url`, `url`, `link` | No | URL String | Canonical posting URL for exact duplicate tracking |
-| `sourceType` | `source_type`, `source` | No | `partner_posting`, `alumni_referral`, `manual_submission`, `api_source`, `campus_drive` | Provenance source category |
-| `requiredSkills` | `required_skills`, `skills` | No | Comma-separated Strings | Skills mapped to canonical dictionary (e.g., `"ReactJS, Node.js, TypeScript"`) |
-| `preferredSkills` | `preferred_skills` | No | Comma-separated Strings | Preferred skills (e.g., `"Docker, AWS, Kubernetes"`) |
-| `minCgpa` | `min_cgpa`, `cgpa` | No | Number (0.0 to 10.0) | Minimum CGPA cut-off requirement (e.g., `7.5`) |
-| `eligibleDepartments` | `departments`, `branches` | No | Comma-separated Strings | Branches eligible (e.g., `"CSE, IT, ECE"`) |
-| `eligibleGraduationYears` | `graduation_years`, `years` | No | Comma-separated Integers | Eligible graduating batches (e.g., `"2025, 2026"`) |
-| `salaryMin` | `salary_min`, `min_salary` | No | Number | Minimum base compensation in currency |
-| `salaryMax` | `salary_max`, `max_salary` | No | Number | Maximum base compensation in currency |
-| `salaryCurrency` | `salary_currency`, `currency` | No | String (Default: `"INR"`) | Currency code (e.g., `"INR"`, `"USD"`) |
-| `deadline` | `apply_by`, `last_date` | No | Date (`YYYY-MM-DD`) | Application deadline date |
+| Header                    | Supported Aliases                   | Required | Type / Values                                                                           | Description & Example                                                          |
+| ------------------------- | ----------------------------------- | -------- | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `title`                   | `job_title`, `position`, `role`     | **Yes**  | String                                                                                  | Job title (e.g., `"Senior Backend Engineer"`)                                  |
+| `company`                 | `company_name`, `organization`      | **Yes**  | String / ObjectId                                                                       | Company name or ID (e.g., `"Google"`, `"Evidra Partner Labs"`)                 |
+| `description`             | `job_description`, `details`        | **Yes**  | String                                                                                  | Full job description text (multiline supported in quotes)                      |
+| `location`                | `city`, `work_location`             | No       | String (Default: `"Remote"`)                                                            | Work city or location (e.g., `"Bengaluru"`, `"Remote"`)                        |
+| `workplaceType`           | `work_mode`, `workmode`             | No       | `remote`, `hybrid`, `on_site`                                                           | Workplace mode (Default: `"on_site"`)                                          |
+| `jobType`                 | `job_type`, `type`                  | No       | `full_time`, `internship`, `part_time`, `contract`                                      | Job contract type (Default: `"full_time"`)                                     |
+| `requisitionId`           | `requisition_id`, `req_id`, `reqid` | No       | String                                                                                  | Unique requisition ID for exact duplicate tracking (e.g., `"REQ-2026-042"`)    |
+| `sourceUrl`               | `source_url`, `url`, `link`         | No       | URL String                                                                              | Canonical posting URL for exact duplicate tracking                             |
+| `sourceType`              | `source_type`, `source`             | No       | `partner_posting`, `alumni_referral`, `manual_submission`, `api_source`, `campus_drive` | Provenance source category                                                     |
+| `requiredSkills`          | `required_skills`, `skills`         | No       | Comma-separated Strings                                                                 | Skills mapped to canonical dictionary (e.g., `"ReactJS, Node.js, TypeScript"`) |
+| `preferredSkills`         | `preferred_skills`                  | No       | Comma-separated Strings                                                                 | Preferred skills (e.g., `"Docker, AWS, Kubernetes"`)                           |
+| `minCgpa`                 | `min_cgpa`, `cgpa`                  | No       | Number (0.0 to 10.0)                                                                    | Minimum CGPA cut-off requirement (e.g., `7.5`)                                 |
+| `eligibleDepartments`     | `departments`, `branches`           | No       | Comma-separated Strings                                                                 | Branches eligible (e.g., `"CSE, IT, ECE"`)                                     |
+| `eligibleGraduationYears` | `graduation_years`, `years`         | No       | Comma-separated Integers                                                                | Eligible graduating batches (e.g., `"2025, 2026"`)                             |
+| `salaryMin`               | `salary_min`, `min_salary`          | No       | Number                                                                                  | Minimum base compensation in currency                                          |
+| `salaryMax`               | `salary_max`, `max_salary`          | No       | Number                                                                                  | Maximum base compensation in currency                                          |
+| `salaryCurrency`          | `salary_currency`, `currency`       | No       | String (Default: `"INR"`)                                                               | Currency code (e.g., `"INR"`, `"USD"`)                                         |
+| `deadline`                | `apply_by`, `last_date`             | No       | Date (`YYYY-MM-DD`)                                                                     | Application deadline date                                                      |
 
 #### Example CSV Payload
 
@@ -412,4 +478,3 @@ title,company,description,location,workplaceType,jobType,requisitionId,sourceUrl
    - Evaluates weighted token similarity across company, normalized title, location, and description text. Suggests candidate postings when score $\ge 0.65$.
 4. **Source Provenance & Merge Tracking**:
    - Merging duplicate postings archives the duplicate, unions distinct skill requirements, and preserves full source audit trail inside `primaryJob.provenance.mergedFrom`.
-

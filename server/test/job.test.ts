@@ -629,7 +629,9 @@ title,company,description,location,requisitionId
         .get('/api/jobs?location=Bengaluru&workMode=remote')
         .set('Cookie', studentCookie);
       expect(locFilter.status).toBe(200);
-      expect(locFilter.body.data.every((j: { location: string }) => j.location === 'Bengaluru')).toBe(true);
+      expect(
+        locFilter.body.data.every((j: { location: string }) => j.location === 'Bengaluru')
+      ).toBe(true);
 
       // 5. Student cannot view draft job detail (404)
       const draftDetailRes = await request(app)
@@ -698,9 +700,9 @@ title,company,description,location,requisitionId
       const listRes = await request(app).get('/api/jobs/sources').set('Cookie', officerCookie);
 
       expect(listRes.status).toBe(200);
-      expect(listRes.body.data.sources.some((s: { name: string }) => s.name === 'Apex Test Source 2026')).toBe(
-        true
-      );
+      expect(
+        listRes.body.data.sources.some((s: { name: string }) => s.name === 'Apex Test Source 2026')
+      ).toBe(true);
     });
   });
 });
