@@ -246,14 +246,14 @@ describe('Mongoose Models Schema & Validation', () => {
       });
       const error = app.validateSync();
       expect(error).toBeUndefined();
-      expect(app.currentStatus).toBe('applied');
+      expect(app.currentStatus).toBe('APPLIED');
     });
 
     it('should validate ApplicationStatusHistory document', () => {
       const history = new ApplicationStatusHistory({
         application: new mongoose.Types.ObjectId(),
-        fromStatus: 'applied',
-        toStatus: 'screening',
+        fromStatus: 'APPLIED',
+        toStatus: 'UNDER_REVIEW',
         changedBy: new mongoose.Types.ObjectId(),
         notes: 'Passed initial eligibility screening',
       });

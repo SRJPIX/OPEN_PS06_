@@ -23,8 +23,22 @@ import { ResumeBuilderPage } from './pages/student/ResumeBuilderPage';
 import { UploadedResumeAnalysisPage } from './pages/student/UploadedResumeAnalysisPage';
 import { ApplicationsPage } from './pages/student/ApplicationsPage';
 import { InterviewPrepPage } from './pages/student/InterviewPrepPage';
+import { AlumniDirectoryPage } from './pages/student/AlumniDirectoryPage';
 import { SettingsPage } from './pages/student/SettingsPage';
-import { OfficerDashboard } from './pages/officer/OfficerDashboard';
+import { PlacementDashboard } from './pages/officer/PlacementDashboard';
+import { StudentDirectoryPage } from './pages/officer/StudentDirectoryPage';
+import { StudentDetailsPage } from './pages/officer/StudentDetailsPage';
+import { EvidenceReviewPage } from './pages/officer/EvidenceReviewPage';
+import { JobManagementPage } from './pages/officer/JobManagementPage';
+import { JobCreateEditPage } from './pages/officer/JobCreateEditPage';
+import { CsvJobImportPage } from './pages/officer/CsvJobImportPage';
+import { DuplicateReviewPage } from './pages/officer/DuplicateReviewPage';
+import { BatchRankingPage } from './pages/officer/BatchRankingPage';
+import { ResumeClaimReviewPage } from './pages/officer/ResumeClaimReviewPage';
+import { ApplicationPipelinePage } from './pages/officer/ApplicationPipelinePage';
+import { PlacementAnalyticsPage } from './pages/officer/PlacementAnalyticsPage';
+import { AuditHistoryPage } from './pages/officer/AuditHistoryPage';
+import { OfficerSettingsPage } from './pages/officer/OfficerSettingsPage';
 import { RecruiterDashboard } from './pages/recruiter/RecruiterDashboard';
 import { NotFoundPage } from './pages/NotFoundPage';
 
@@ -59,16 +73,27 @@ export const App: React.FC = () => {
                     <Route path="/student/resume-analysis" element={<UploadedResumeAnalysisPage />} />
                     <Route path="/student/applications" element={<ApplicationsPage />} />
                     <Route path="/student/interview-prep" element={<InterviewPrepPage />} />
+                    <Route path="/student/alumni" element={<AlumniDirectoryPage />} />
                     <Route path="/student/settings" element={<SettingsPage />} />
                   </Route>
 
-                  {/* Placement Officer & Admin Routes */}
+                  {/* Placement Officer & Admin Routes (12 Workspaces) */}
                   <Route element={<RoleRoute allowedRoles={['placement_officer', 'admin']} />}>
-                    <Route path="/officer/dashboard" element={<OfficerDashboard />} />
-                    <Route path="/officer/evidence-reviews" element={<OfficerDashboard />} />
-                    <Route path="/officer/matching" element={<OfficerDashboard />} />
-                    <Route path="/officer/jobs" element={<OfficerDashboard />} />
-                    <Route path="/officer/students" element={<OfficerDashboard />} />
+                    <Route path="/officer/dashboard" element={<PlacementDashboard />} />
+                    <Route path="/officer/students" element={<StudentDirectoryPage />} />
+                    <Route path="/officer/students/:studentId" element={<StudentDetailsPage />} />
+                    <Route path="/officer/evidence-reviews" element={<EvidenceReviewPage />} />
+                    <Route path="/officer/jobs" element={<JobManagementPage />} />
+                    <Route path="/officer/jobs/create" element={<JobCreateEditPage />} />
+                    <Route path="/officer/jobs/:id/edit" element={<JobCreateEditPage />} />
+                    <Route path="/officer/jobs/import-csv" element={<CsvJobImportPage />} />
+                    <Route path="/officer/jobs/duplicates" element={<DuplicateReviewPage />} />
+                    <Route path="/officer/matching" element={<BatchRankingPage />} />
+                    <Route path="/officer/resume-claims" element={<ResumeClaimReviewPage />} />
+                    <Route path="/officer/applications" element={<ApplicationPipelinePage />} />
+                    <Route path="/officer/analytics" element={<PlacementAnalyticsPage />} />
+                    <Route path="/officer/audit-logs" element={<AuditHistoryPage />} />
+                    <Route path="/officer/settings" element={<OfficerSettingsPage />} />
                   </Route>
 
                   {/* Recruiter Routes */}

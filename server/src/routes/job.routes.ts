@@ -8,6 +8,7 @@ import {
   parseJobDescriptionEndpoint,
   importJobsCsvEndpoint,
   getJobDuplicatesEndpoint,
+  getAllDuplicateCandidatesEndpoint,
   mergeJobsEndpoint,
 } from '../controllers/job.controller';
 import { requireAuth, optionalAuth, requireRole } from '../middleware/auth.middleware';
@@ -16,7 +17,21 @@ const router = Router();
 
 // 1. Public & Student-filtered job browsing
 router.get('/', optionalAuth, getJobs);
-router.get('/:id', optionalAuth, getJobById);
+
+// 4. Job Duplicate Review & Merge (placed before /:id)
+router.get(
+  '/duplicates/all',
+  requireAuth,
+  requireRole('placement_officer', 'recruiter', 'admin'),
+  getAllDuplicateCandidatesEndpoint
+);
+
+router.get(
+  '/:id/duplicates',
+  requireAuth,
+  requireRole('placement_officer', 'recruiter', 'admin'),
+  getJobDuplicatesEndpoint
+);
 
 // 2. Job Parsing (deterministic + optional LLM)
 router.post(
@@ -34,13 +49,7 @@ router.post(
   importJobsCsvEndpoint
 );
 
-// 4. Job Duplicate Review & Merge
-router.get(
-  '/:id/duplicates',
-  requireAuth,
-  requireRole('placement_officer', 'recruiter', 'admin'),
-  getJobDuplicatesEndpoint
-);
+router.get('/:id', optionalAuth, getJobById);
 
 router.post(
   '/merge',

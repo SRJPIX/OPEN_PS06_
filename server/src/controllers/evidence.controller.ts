@@ -120,12 +120,25 @@ export const getMyEvidence = async (
   try {
     if (!req.user) throw ApiError.unauthorized('Authentication required.');
 
-    const profile = await StudentProfile.findOne({ user: req.user.userId });
-    if (!profile) throw ApiError.notFound('Student profile not found.');
+    let studentProfileId: any;
+    if (
+      req.user.role === 'placement_officer' ||
+      req.user.role === 'admin' ||
+      req.user.role === 'recruiter'
+    ) {
+      if (req.query.studentId) {
+        studentProfileId = req.query.studentId;
+      }
+    } else {
+      const profile = await StudentProfile.findOne({ user: req.user.userId });
+      if (!profile) throw ApiError.notFound('Student profile not found.');
+      studentProfileId = profile._id;
+    }
 
     const { status, type } = req.query;
 
-    const query: Record<string, unknown> = { student: profile._id };
+    const query: Record<string, unknown> = {};
+    if (studentProfileId) query.student = studentProfileId;
     if (status) query.status = status;
     if (type) query.type = type;
 
@@ -134,7 +147,15 @@ export const getMyEvidence = async (
       .populate('reviewedBy', 'email role')
       .sort({ createdAt: -1 });
 
-    sendSuccess(res, evidenceList, 'Evidence records retrieved successfully');
+    if (req.query.studentId) {
+      sendSuccess(
+        res,
+        { evidence: evidenceList, items: evidenceList },
+        'Evidence records retrieved successfully'
+      );
+    } else {
+      sendSuccess(res, evidenceList, 'Evidence records retrieved successfully');
+    }
   } catch (error) {
     next(error);
   }

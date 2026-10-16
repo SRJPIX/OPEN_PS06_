@@ -168,15 +168,43 @@ export interface MatchAnalysis {
   };
 }
 
+export type ClaimValidationStatus = 'SUPPORTED' | 'NEEDS_REVIEW' | 'UNSUPPORTED' | 'CONTRADICTED';
+
 export interface ResumeClaimItem {
   _id: string;
   resume: string;
   student: string;
   claimType: 'skill' | 'project' | 'experience' | 'education' | 'achievement';
   text: string;
+  extractedText?: string;
+  correctedText?: string;
+  validationStatus?: ClaimValidationStatus;
+  explanation?: string;
   isVerified: boolean;
   evidence: EvidenceItem[];
+  skills?: CanonicalSkill[] | string[];
   confidenceScore: number;
+  flaggedForOfficerReview?: boolean;
+  reviewNotes?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ResumeBulletItem {
+  bulletId: string;
+  section: 'summary' | 'education' | 'skills' | 'projects' | 'experience' | 'certifications';
+  text: string;
+  validationStatus: ClaimValidationStatus;
+  confidenceScore: number;
+  evidenceIds: string[];
+  skillIds: string[];
+}
+
+export interface ResumeExcludedItem {
+  type: 'skill' | 'project' | 'certification' | 'metric';
+  text: string;
+  reason: string;
+  relatedSkills?: string[];
 }
 
 export interface ResumeItem {
@@ -186,11 +214,51 @@ export interface ResumeItem {
   version: number;
   summary?: string;
   targetRole?: string;
+  targetJob?: JobItem | string;
+  validationStatus?: 'VERIFIED_ONLY' | 'PARTIALLY_VERIFIED' | 'SELF_REPORTED' | 'FLAGGED';
+  bullets?: ResumeBulletItem[];
+  excludedItems?: ResumeExcludedItem[];
+  generationStats?: {
+    verifiedSkillsIncluded: number;
+    unverifiedSkillsOmitted: number;
+    projectsIncluded: number;
+    projectsOmitted: number;
+    totalEvidenceLinked: number;
+  };
+  originalFile?: {
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+    uploadedAt: string;
+  };
   fileUrl?: string;
   isPrimary: boolean;
   status: 'draft' | 'generated' | 'verified' | 'archived';
   createdAt: string;
   updatedAt: string;
+}
+
+export interface ResumeProvenanceResponse {
+  resumeId: string;
+  version: number;
+  title: string;
+  bulletsProvenance: Array<{
+    bulletId: string;
+    section: string;
+    text: string;
+    validationStatus: ClaimValidationStatus;
+    confidenceScore: number;
+    evidence: EvidenceItem[];
+    skillIds: string[];
+  }>;
+  excludedItems: ResumeExcludedItem[];
+  generationStats?: {
+    verifiedSkillsIncluded: number;
+    unverifiedSkillsOmitted: number;
+    projectsIncluded: number;
+    projectsOmitted: number;
+    totalEvidenceLinked: number;
+  };
 }
 
 export interface ApplicationHistoryItem {
@@ -220,7 +288,13 @@ export interface ApplicationItem {
     | 'interview'
     | 'offered'
     | 'rejected'
-    | 'withdrawn';
+    | 'withdrawn'
+    | 'APPLIED'
+    | 'UNDER_REVIEW'
+    | 'INTERVIEW'
+    | 'OFFER'
+    | 'REJECTED'
+    | 'WITHDRAWN';
   appliedAt: string;
   coverLetter?: string;
   createdAt: string;

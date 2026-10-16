@@ -99,6 +99,12 @@ export const DashboardLayout: React.FC = () => {
           badge: 'Prep',
         },
         {
+          label: 'Alumni Network',
+          href: '/student/alumni',
+          icon: <GraduationCap className="w-4 h-4 text-blue-400" />,
+          badge: 'Referrals',
+        },
+        {
           label: 'Account & Security',
           href: '/student/settings',
           icon: <Settings className="w-4 h-4" />,
@@ -109,9 +115,14 @@ export const DashboardLayout: React.FC = () => {
     if (user.role === 'placement_officer' || user.role === 'admin') {
       return [
         {
-          label: 'Officer Workspace',
+          label: 'Placement Dashboard',
           href: '/officer/dashboard',
           icon: <LayoutDashboard className="w-4 h-4" />,
+        },
+        {
+          label: 'Student Directory',
+          href: '/officer/students',
+          icon: <Users className="w-4 h-4" />,
         },
         {
           label: 'Evidence Queue',
@@ -120,20 +131,52 @@ export const DashboardLayout: React.FC = () => {
           badge: 'Review',
         },
         {
-          label: 'Match & Ranking Engine',
+          label: 'Job Requisitions',
+          href: '/officer/jobs',
+          icon: <Briefcase className="w-4 h-4" />,
+        },
+        {
+          label: 'Duplicate Review',
+          href: '/officer/jobs/duplicates',
+          icon: <Shield className="w-4 h-4 text-amber-400" />,
+          badge: 'Dedupe',
+        },
+        {
+          label: 'CSV Job Import',
+          href: '/officer/jobs/import-csv',
+          icon: <FileText className="w-4 h-4" />,
+        },
+        {
+          label: 'Batch Ranking Engine',
           href: '/officer/matching',
           icon: <Sparkles className="w-4 h-4 text-blue-400" />,
           badge: 'AI Core',
         },
         {
-          label: 'Requisition Catalog',
-          href: '/officer/jobs',
-          icon: <Briefcase className="w-4 h-4" />,
+          label: 'Resume Claims',
+          href: '/officer/resume-claims',
+          icon: <ShieldCheck className="w-4 h-4 text-teal-400" />,
+          badge: 'Claims',
         },
         {
-          label: 'Student Directory',
-          href: '/officer/students',
-          icon: <Users className="w-4 h-4" />,
+          label: 'Application Pipeline',
+          href: '/officer/applications',
+          icon: <Activity className="w-4 h-4" />,
+        },
+        {
+          label: 'Placement Analytics',
+          href: '/officer/analytics',
+          icon: <Sparkles className="w-4 h-4 text-purple-400" />,
+        },
+        {
+          label: 'Audit History',
+          href: '/officer/audit-logs',
+          icon: <Shield className="w-4 h-4" />,
+        },
+        {
+          label: 'Policy Settings',
+          href: '/officer/settings',
+          icon: <Settings className="w-4 h-4" />,
         },
       ];
     }

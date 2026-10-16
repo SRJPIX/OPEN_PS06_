@@ -7,6 +7,8 @@ import { Job } from '../models/Job';
 import { Application } from '../models/Application';
 import { Assessment } from '../models/Assessment';
 import { Project } from '../models/Project';
+import { User } from '../models/User';
+import { Resume } from '../models/Resume';
 import { ApiError } from '../utils/apiError';
 import { sendSuccess } from '../utils/apiResponse';
 import { resolveSkillDocument } from '../utils/skillNormalizer';
@@ -489,6 +491,171 @@ export const createStudentProject = async (
     await project.populate('skills', 'name slug category');
 
     sendSuccess(res, project, 'Project recorded successfully', 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/students
+ * Placement officer & recruiter student directory listing with server-side filters and pagination.
+ */
+export const listStudents = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 10;
+    const search = req.query.search as string;
+    const department = req.query.department as string;
+    const graduationYear = req.query.graduationYear
+      ? parseInt(req.query.graduationYear as string, 10)
+      : undefined;
+    const minCgpa = req.query.minCgpa ? parseFloat(req.query.minCgpa as string) : undefined;
+    const sortBy = (req.query.sortBy as string) || 'cgpa';
+    const sortOrder = req.query.sortOrder === 'asc' ? 1 : -1;
+
+    const query: Record<string, unknown> = {};
+
+    if (department) {
+      query.department = { $regex: department.trim(), $options: 'i' };
+    }
+    if (graduationYear) {
+      query.graduationYear = graduationYear;
+    }
+    if (minCgpa !== undefined && !isNaN(minCgpa)) {
+      query.cgpa = { $gte: minCgpa };
+    }
+
+    if (search && search.trim()) {
+      const trimmed = search.trim();
+      const matchingUsers = await User.find({
+        email: { $regex: trimmed, $options: 'i' },
+      }).select('_id');
+      const userIds = matchingUsers.map((u) => u._id);
+
+      query.$or = [
+        { rollNumber: { $regex: trimmed, $options: 'i' } },
+        { department: { $regex: trimmed, $options: 'i' } },
+        { user: { $in: userIds } },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+    const sortObj: Record<string, 1 | -1> = { [sortBy]: sortOrder };
+
+    const [profiles, total] = await Promise.all([
+      StudentProfile.find(query)
+        .populate('user', 'email role status')
+        .sort(sortObj)
+        .skip(skip)
+        .limit(limit),
+      StudentProfile.countDocuments(query),
+    ]);
+
+    const profileIds = profiles.map((p) => p._id);
+    const allSkills = await StudentSkill.find({ student: { $in: profileIds } }).populate(
+      'skill',
+      'name slug category'
+    );
+
+    const skillsByStudent = new Map<string, typeof allSkills>();
+    allSkills.forEach((ss) => {
+      const sId = ss.student.toString();
+      const arr = skillsByStudent.get(sId) || [];
+      arr.push(ss);
+      skillsByStudent.set(sId, arr);
+    });
+
+    const students = profiles.map((p) => {
+      const studentSkills = skillsByStudent.get(p._id.toString()) || [];
+      const verifiedCount = studentSkills.filter((s) => s.isVerified).length;
+      return {
+        ...p.toObject(),
+        skills: studentSkills,
+        totalSkillsCount: studentSkills.length,
+        verifiedSkillsCount: verifiedCount,
+      };
+    });
+
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    sendSuccess(res, students, 'Students retrieved successfully', 200, {
+      page,
+      limit,
+      total,
+      totalPages,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/students/:id
+ * Retrieve detailed student information including skills, evidence, projects, assessments, and applications.
+ */
+export const getStudentDetailsById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const id = req.params.id as string;
+    if (!id || !Types.ObjectId.isValid(id)) {
+      throw ApiError.badRequest('Invalid student ID format.');
+    }
+
+    let profile = await StudentProfile.findById(id).populate('user', 'email role status');
+    if (!profile) {
+      profile = await StudentProfile.findOne({ user: id }).populate('user', 'email role status');
+    }
+
+    if (!profile) {
+      throw ApiError.notFound('Student profile not found.');
+    }
+
+    const [skills, evidence, projects, assessments, applications, resumes] = await Promise.all([
+      StudentSkill.find({ student: profile._id })
+        .populate('skill', 'name slug category aliases')
+        .populate('evidence')
+        .sort({ isVerified: -1, confidenceScore: -1 }),
+      Evidence.find({ student: profile._id })
+        .populate('skills', 'name slug category')
+        .populate('reviewedBy', 'email role')
+        .sort({ createdAt: -1 }),
+      Project.find({ student: profile._id })
+        .populate('skills', 'name slug category')
+        .sort({ createdAt: -1 }),
+      Assessment.find({ student: profile._id })
+        .populate('skill', 'name slug category')
+        .sort({ takenAt: -1 }),
+      Application.find({ student: profile._id })
+        .populate({
+          path: 'job',
+          select: 'title workplaceType jobType location status',
+          populate: { path: 'company', select: 'name logoUrl' },
+        })
+        .populate('resume', 'title version status')
+        .sort({ appliedAt: -1 }),
+      Resume.find({ student: profile._id }).sort({ updatedAt: -1 }),
+    ]);
+
+    sendSuccess(
+      res,
+      {
+        profile,
+        skills,
+        evidence,
+        projects,
+        assessments,
+        applications,
+        resumes,
+      },
+      'Student profile details retrieved successfully'
+    );
   } catch (error) {
     next(error);
   }

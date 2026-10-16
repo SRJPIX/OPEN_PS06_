@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import { Types } from 'mongoose';
 import { createApp } from '../src/app';
 import { connectDB, disconnectDB } from '../src/config/db';
 import { User, IUser } from '../src/models/User';
@@ -290,6 +291,49 @@ describe('Deterministic Explainable Job-Matching Engine', () => {
         maxScore: 100,
         reviewedBy: officerUser._id,
       });
+    } else {
+      const mockId = () => new Types.ObjectId();
+      reactSkill = { _id: mockId(), name: 'React', slug: 'react', category: 'frontend', isCanonical: true } as any;
+      nodeSkill = { _id: mockId(), name: 'Node.js', slug: 'nodejs', category: 'backend', isCanonical: true } as any;
+      tsSkill = { _id: mockId(), name: 'TypeScript', slug: 'typescript', category: 'languages', isCanonical: true } as any;
+      pythonSkill = { _id: mockId(), name: 'Python', slug: 'python', category: 'languages', isCanonical: true } as any;
+
+      student1Profile = {
+        _id: mockId(),
+        rollNumber: 'ALICE2026',
+        department: 'Computer Science & Engineering',
+        degree: 'B.Tech',
+        graduationYear: 2026,
+        cgpa: 8.85,
+      } as any;
+
+      student2Profile = {
+        _id: mockId(),
+        rollNumber: 'BOB2026',
+        department: 'Computer Science & Engineering',
+        degree: 'B.Tech',
+        graduationYear: 2026,
+        cgpa: 6.2,
+      } as any;
+
+      student3Profile = {
+        _id: mockId(),
+        rollNumber: 'CHARLIE2026',
+        department: 'Information Technology',
+        degree: 'B.Tech',
+        graduationYear: 2026,
+        cgpa: 8.0,
+      } as any;
+
+      testJob = {
+        _id: mockId(),
+        title: 'Full Stack Engineer',
+        minCgpa: 7.5,
+        eligibleBatches: [2026],
+        eligibleBranches: ['Computer Science & Engineering', 'CSE'],
+        requiredSkills: [reactSkill._id, nodeSkill._id],
+        preferredSkills: [tsSkill._id],
+      } as any;
     }
   });
 

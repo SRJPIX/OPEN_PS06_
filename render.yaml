@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: evidra-api
+    env: node
+    plan: free
+    region: oregon
+    buildCommand: npm run build:server
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: CLIENT_URL
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: COOKIE_NAME
+        value: evidra_token
+      - key: GEMINI_API_KEY
+        sync: false
+

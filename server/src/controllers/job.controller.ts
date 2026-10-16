@@ -112,7 +112,7 @@ export const createJob = async (req: Request, res: Response, next: NextFunction)
       sourceUrl: data.sourceUrl,
     });
 
-    if (exactDupCheck.isDuplicate) {
+    if (exactDupCheck.isDuplicate && data.sourceType !== 'partner_posting' && data.status !== 'draft') {
       sendError(
         res,
         'DUPLICATE_JOB',
@@ -202,9 +202,12 @@ export const createJob = async (req: Request, res: Response, next: NextFunction)
     await job.populate('requiredSkills', 'name slug category');
     await job.populate('preferredSkills', 'name slug category');
 
+    const jobObj = job.toObject();
+
     sendSuccess(
       res,
       {
+        ...jobObj,
         job,
         duplicateSuggestions: potentialDups.length > 0 ? potentialDups : undefined,
       },
@@ -639,6 +642,55 @@ export const getJobDuplicatesEndpoint = async (
     });
 
     sendSuccess(res, { suggestions }, 'Duplicate suggestions retrieved');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/jobs/duplicates/all
+ * Lists all jobs that currently have suspected duplicate candidates in the catalog.
+ */
+export const getAllDuplicateCandidatesEndpoint = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const jobs = await Job.find({ status: { $ne: 'archived' } })
+      .populate('company', 'name industry logoUrl website')
+      .sort({ createdAt: -1 })
+      .limit(60);
+
+    const results: Array<{
+      job: unknown;
+      duplicates: unknown[];
+    }> = [];
+
+    for (const job of jobs) {
+      if (!job.company) continue;
+      const suggestions = await calculateDuplicateSuggestions({
+        companyId: (job.company as any)._id,
+        title: job.title,
+        description: job.description,
+        location: job.location,
+        requisitionId: job.requisitionId,
+        excludeJobId: job._id,
+      });
+
+      if (suggestions && suggestions.length > 0) {
+        results.push({
+          job,
+          duplicates: suggestions,
+        });
+      }
+    }
+
+    sendSuccess(
+      res,
+      { candidates: results, total: results.length },
+      'Duplicate candidates retrieved'
+    );
   } catch (error) {
     next(error);
   }

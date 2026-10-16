@@ -213,17 +213,28 @@ export const resolveSkillDocument = async (input: string): Promise<ISkill | null
   // 2. Check canonical dictionary
   const canonicalDef = resolveCanonicalSkillDefinition(input);
   if (canonicalDef) {
-    const existing = await Skill.findOne({ slug: canonicalDef.slug });
+    const existing = await Skill.findOne({
+      $or: [{ slug: canonicalDef.slug }, { name: canonicalDef.name }],
+    });
     if (existing) return existing;
 
-    // Create if not yet seeded
-    return Skill.create({
-      slug: canonicalDef.slug,
-      name: canonicalDef.name,
-      category: canonicalDef.category,
-      aliases: canonicalDef.aliases,
-      description: canonicalDef.description,
-    });
+    // Create if not yet seeded, safely handling concurrent race condition
+    try {
+      return await Skill.create({
+        slug: canonicalDef.slug,
+        name: canonicalDef.name,
+        category: canonicalDef.category,
+        aliases: canonicalDef.aliases,
+        description: canonicalDef.description,
+      });
+    } catch (err: any) {
+      if (err?.code === 11000) {
+        return Skill.findOne({
+          $or: [{ slug: canonicalDef.slug }, { name: canonicalDef.name }],
+        });
+      }
+      throw err;
+    }
   }
 
   // 3. Fallback: search database by slug, name, or aliases
@@ -242,16 +253,22 @@ export const resolveSkillDocument = async (input: string): Promise<ISkill | null
 export const seedCanonicalSkills = async (): Promise<number> => {
   let seededCount = 0;
   for (const def of CANONICAL_SKILLS) {
-    const existing = await Skill.findOne({ slug: def.slug });
+    const existing = await Skill.findOne({
+      $or: [{ slug: def.slug }, { name: def.name }],
+    });
     if (!existing) {
-      await Skill.create({
-        slug: def.slug,
-        name: def.name,
-        category: def.category,
-        aliases: def.aliases,
-        description: def.description,
-      });
-      seededCount++;
+      try {
+        await Skill.create({
+          slug: def.slug,
+          name: def.name,
+          category: def.category,
+          aliases: def.aliases,
+          description: def.description,
+        });
+        seededCount++;
+      } catch (err: any) {
+        if (err?.code !== 11000) throw err;
+      }
     } else {
       // Keep aliases and category updated
       existing.aliases = Array.from(new Set([...existing.aliases, ...def.aliases]));
