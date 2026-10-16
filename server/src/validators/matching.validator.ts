@@ -14,3 +14,4 @@ export const rankCandidatesQuerySchema = z.object({
 });
 
 export type RankCandidatesQuery = z.infer<typeof rankCandidatesQuerySchema>;
+

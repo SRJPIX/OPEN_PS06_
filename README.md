@@ -351,6 +351,70 @@ Evidra implements a transparent, deterministic matching engine operating directl
 $$\text{Fit Score} = 100 \times \frac{\sum (w_i \times e_i)}{\sum w_i}$$
 
 Where:
+- $w_i$ is the skill importance weight:
+  - Required skills: $w_i = 3$ (configurable)
+  - Preferred skills: $w_i = 1$ (configurable)
+- $e_i \in [0, 1]$ is the verified evidence match value for skill $i$.
+
+### Evidence Contribution & Anti-Fraud Tiers
+
+| Evidence Type | Verification Condition | Proficiency Contribution ($p$) |
+|---|---|---|
+| **Coding Assessment** | Score $\ge 85\%$ (Officer Reviewed) | $1.00$ (High demonstrated proficiency) |
+| **Coding Assessment** | Score $70\% - 84\%$ | $0.85$ |
+| **Coding Assessment** | Score $50\% - 69\%$ | $0.65$ |
+| **Coding Assessment** | Passed without numerical score | $0.80$ |
+| **Evaluated Project** | Score $\ge 80\%$ (Officer Reviewed) | $0.90$ |
+| **Evaluated Project** | Score $60\% - 79\%$ | $0.75$ |
+| **Evaluated Project** | Passed without numerical score | $0.75$ |
+| **Technical Quiz** | Score ratio (Officer Reviewed) | $\min(0.85, \max(0.40, s))$ |
+| **Verified Certification** | Officer Reviewed & Verified | $0.75$ |
+| **GitHub Repository** | Officer Reviewed & Evaluated | $0.65$ (or evaluated score ratio) |
+| **Unreviewed Evidence / Raw Repo URL** | Any unverified submission | **$0.00$** (Strictly excluded) |
+| **Self-Reported Skill Claim** | Without reviewed proof | **$0.00$** (Flagged as Unsupported Claim) |
+
+- **Multi-Evidence Aggregation**: Multiple distinct items for a single skill combine with diminishing returns: $e_i = \min(1.0, p_1 + 0.25 p_2 + 0.1 p_3)$.
+- **Anti-Duplication**: Duplicate submissions sharing identical URLs or IDs are deduplicated to prevent score inflation.
+
+### Academic Eligibility Invariants
+
+Eligibility criteria (CGPA, graduation year, department) are evaluated **strictly independently** from skill fit scores:
+- `MET`: All mandatory job criteria satisfied.
+- `NOT_MET`: One or more mandatory criteria failed (e.g. CGPA below minimum).
+- `UNKNOWN`: Required student record missing.
+
+> [!IMPORTANT]
+> **Core Invariant**: A high skill fit score **never** overrides a failed mandatory criterion. Candidates failing mandatory criteria are classified as `NOT_MET`.
+
+### Deterministic Tie-Breaking Order
+
+1. **Eligibility Status**: `MET` > `UNKNOWN` > `NOT_MET`
+2. **Fit Score**: Higher score first
+3. **Supported Required Skills Count**: More verified required skills first
+4. **Total Supported Skills Count**: More verified total skills first
+5. **Academic CGPA**: Higher CGPA first
+6. **Student Profile ID**: Lexicographical tie-breaker guaranteeing 100% deterministic, immutable ranking order.
+
+### Matching API Endpoints
+
+| Method | Endpoint | Allowed Roles | Description |
+|---|---|---|---|
+| `GET` | `/api/matching/jobs/:jobId/rank` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Batch-rank candidates with explanations, gaps and filters |
+| `GET` | `/api/matching/jobs/:jobId/export/csv` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Export batch rankings to downloadable RFC 4180 CSV |
+| `GET` | `/api/matching/jobs/:jobId/students/:studentId` | `PLACEMENT_OFFICER`, `RECRUITER`, `ADMIN` | Detailed candidate match analysis with evidence links |
+| `GET` | `/api/matching/jobs/:jobId/my-fit` | `STUDENT` | Authenticated student inspects personal fit for published job |
+
+---
+
+## Explainable Evidence-Based Matching Engine
+
+Evidra implements a transparent, deterministic matching engine operating directly on verified database records.
+
+### Mathematical Scoring Formula
+
+$$\text{Fit Score} = 100 \times \frac{\sum (w_i \times e_i)}{\sum w_i}$$
+
+Where:
 
 - $w_i$ is the skill importance weight:
   - Required skills: $w_i = 3$ (configurable)
