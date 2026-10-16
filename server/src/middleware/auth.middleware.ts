@@ -4,8 +4,11 @@ import { User, UserRole, UserStatus } from '../models/User';
 import { verifyAuthToken } from '../utils/token';
 import { ApiError } from '../utils/apiError';
 
+import { Types } from 'mongoose';
+
 export interface AuthUser {
   userId: string;
+  _id: Types.ObjectId;
   email: string;
   role: UserRole;
   status: UserStatus;
@@ -66,6 +69,7 @@ export const requireAuth = async (
 
     req.user = {
       userId: user._id.toString(),
+      _id: user._id as Types.ObjectId,
       email: user.email,
       role: user.role,
       status: user.status,
@@ -74,6 +78,38 @@ export const requireAuth = async (
     next();
   } catch (error) {
     next(error);
+  }
+};
+
+/**
+ * Optional authentication middleware.
+ * If token is present and valid, attaches user; otherwise proceeds without error.
+ */
+export const optionalAuth = async (
+  req: Request,
+  _res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const token = extractToken(req);
+    if (!token) {
+      return next();
+    }
+
+    const payload = verifyAuthToken(token);
+    const user = await User.findById(payload.userId);
+    if (user && user.status !== 'suspended') {
+      req.user = {
+        userId: user._id.toString(),
+        _id: user._id as Types.ObjectId,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+      };
+    }
+    next();
+  } catch {
+    next();
   }
 };
 

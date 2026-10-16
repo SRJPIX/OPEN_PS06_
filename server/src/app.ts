@@ -9,6 +9,8 @@ import authRoutes from './routes/auth.routes';
 import studentRoutes from './routes/student.routes';
 import evidenceRoutes from './routes/evidence.routes';
 import skillRoutes from './routes/skill.routes';
+import jobRoutes from './routes/job.routes';
+import jobSourceRoutes from './routes/jobSource.routes';
 import { apiRateLimiter } from './middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { sendSuccess } from './utils/apiResponse';
@@ -31,6 +33,7 @@ export const createApp = (): Application => {
 
   // 3. Body and Cookie Parsers
   app.use(express.json({ limit: '10mb' }));
+  app.use(express.text({ type: ['text/csv', 'text/plain'], limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(cookieParser());
 
@@ -56,6 +59,8 @@ export const createApp = (): Application => {
         students: '/api/students',
         evidence: '/api/evidence',
         skills: '/api/skills',
+        jobs: '/api/jobs',
+        jobSources: '/api/jobs/sources',
       },
     });
   });
@@ -73,6 +78,8 @@ export const createApp = (): Application => {
   app.use('/api/students', studentRoutes);
   app.use('/api/evidence', evidenceRoutes);
   app.use('/api/skills', skillRoutes);
+  app.use('/api/jobs/sources', jobSourceRoutes);
+  app.use('/api/jobs', jobRoutes);
 
   // 9. 404 Handler for undefined routes
   app.use(notFoundHandler);

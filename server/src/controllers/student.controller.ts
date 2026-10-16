@@ -151,4 +151,3 @@ export const addOrUpdateSkill = async (
     next(error);
   }
 };
-

@@ -8,6 +8,7 @@ export interface ICompany extends Document {
   logoUrl?: string;
   isVerified: boolean;
   createdBy: Types.ObjectId;
+  authorizedRecruiters?: Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -50,6 +51,12 @@ const companySchema = new Schema<ICompany>(
       required: [true, 'Company creator user reference is required'],
       index: true,
     },
+    authorizedRecruiters: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
   },
   {
     timestamps: true,

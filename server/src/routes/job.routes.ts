@@ -1,0 +1,64 @@
+import { Router } from 'express';
+import {
+  createJob,
+  getJobs,
+  getJobById,
+  updateJob,
+  archiveJob,
+  parseJobDescriptionEndpoint,
+  importJobsCsvEndpoint,
+  getJobDuplicatesEndpoint,
+  mergeJobsEndpoint,
+} from '../controllers/job.controller';
+import { requireAuth, optionalAuth, requireRole } from '../middleware/auth.middleware';
+
+const router = Router();
+
+// 1. Public & Student-filtered job browsing
+router.get('/', optionalAuth, getJobs);
+router.get('/:id', optionalAuth, getJobById);
+
+// 2. Job Parsing (deterministic + optional LLM)
+router.post(
+  '/parse',
+  requireAuth,
+  requireRole('placement_officer', 'recruiter', 'admin'),
+  parseJobDescriptionEndpoint
+);
+
+// 3. CSV Job Ingestion
+router.post(
+  '/import/csv',
+  requireAuth,
+  requireRole('placement_officer', 'recruiter', 'admin'),
+  importJobsCsvEndpoint
+);
+
+// 4. Job Duplicate Review & Merge
+router.get(
+  '/:id/duplicates',
+  requireAuth,
+  requireRole('placement_officer', 'recruiter', 'admin'),
+  getJobDuplicatesEndpoint
+);
+
+router.post(
+  '/merge',
+  requireAuth,
+  requireRole('placement_officer', 'recruiter', 'admin'),
+  mergeJobsEndpoint
+);
+
+// 5. Job Creation, Update & Archive
+router.post('/', requireAuth, requireRole('placement_officer', 'recruiter', 'admin'), createJob);
+
+router.put('/:id', requireAuth, requireRole('placement_officer', 'recruiter', 'admin'), updateJob);
+
+router.patch(
+  '/:id/archive',
+  requireAuth,
+  requireRole('placement_officer', 'recruiter', 'admin'),
+  archiveJob
+);
+
+export default router;
