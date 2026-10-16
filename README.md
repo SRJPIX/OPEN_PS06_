@@ -6,14 +6,14 @@ Evidra is an AI-powered placement intelligence platform designed to bridge stude
 
 ## Tech Stack
 
-| Domain             | Technologies                                         |
-| :----------------- | :--------------------------------------------------- |
-| **Frontend**       | React 19, Vite, TypeScript, Tailwind CSS             |
-| **Backend**        | Node.js, Express, TypeScript                         |
-| **Database**       | MongoDB Atlas, Mongoose ODM                          |
-| **Authentication** | JWT stored in secure HTTP-only cookies               |
-| **Deployment**     | Vercel (Frontend SPA) & Render (Backend API Service) |
-| **Tooling**        | ESLint, Prettier, Concurrently, tsx                  |
+| Domain             | Technologies                                            |
+| :----------------- | :------------------------------------------------------ |
+| **Frontend**       | React 19, Vite, TypeScript, Tailwind CSS                |
+| **Backend**        | Node.js, Express, TypeScript, Zod, Rate Limiter, Helmet |
+| **Database**       | MongoDB Atlas, Mongoose ODM                             |
+| **Authentication** | JWT stored in secure HTTP-only cookies                  |
+| **Deployment**     | Vercel (Frontend SPA) & Render (Backend API Service)    |
+| **Tooling**        | ESLint, Prettier, Concurrently, tsx, Vitest, Supertest  |
 
 ---
 
@@ -35,12 +35,42 @@ evidra/
 │   └── .env.example            # Client environment template
 ├── server/                     # Backend REST API Service
 │   ├── src/
-│   │   ├── config/             # DB & server configuration
-│   │   │   └── db.ts           # MongoDB Atlas connection & readiness
+│   │   ├── config/             # DB & environment configuration
+│   │   │   ├── db.ts           # MongoDB connection lifecycle & readiness
+│   │   │   └── env.ts          # Zod startup environment validation
+│   │   ├── middleware/         # Express middlewares
+│   │   │   ├── error.middleware.ts # Centralised error & 404 handlers
+│   │   │   └── rateLimiter.ts  # Express rate limiting
+│   │   ├── models/             # Mongoose Domain Models
+│   │   │   ├── User.ts         # User auth & role accounts
+│   │   │   ├── StudentProfile.ts # Student academic identity & links
+│   │   │   ├── Company.ts      # Recruiter company entities
+│   │   │   ├── Skill.ts        # Canonical skill dictionary
+│   │   │   ├── StudentSkill.ts # Student-to-skill junction & proficiency
+│   │   │   ├── Evidence.ts     # Verifiable proof artifacts
+│   │   │   ├── Project.ts      # Student portfolio projects
+│   │   │   ├── Assessment.ts   # Skill assessments & scores
+│   │   │   ├── Job.ts          # Placement job listings
+│   │   │   ├── JobSource.ts    # Placement drives & referral channels
+│   │   │   ├── Resume.ts       # Student resumes & versions
+│   │   │   ├── ResumeClaim.ts  # Verified claims extracted on resumes
+│   │   │   ├── Application.ts  # Student job applications
+│   │   │   ├── ApplicationStatusHistory.ts # Application status audit trail
+│   │   │   ├── AuditLog.ts     # System-wide compliance & security log
+│   │   │   └── index.ts        # Models barrel exporter
 │   │   ├── routes/             # Express API routes
-│   │   │   └── health.routes.ts # Health check endpoint
+│   │   │   └── health.routes.ts # Health (liveness) & ready (readiness) routes
+│   │   ├── utils/              # API helpers
+│   │   │   ├── apiError.ts     # Operational ApiError class
+│   │   │   └── apiResponse.ts  # Standardised JSON response envelope
 │   │   ├── app.ts              # Express application factory & middleware
 │   │   └── index.ts            # Server entrypoint & graceful shutdown
+│   ├── test/                   # Vitest & Supertest test suite
+│   │   ├── db.test.ts          # DB connection lifecycle tests
+│   │   ├── env.test.ts         # Environment validation tests
+│   │   ├── error.test.ts       # Centralised error handling tests
+│   │   ├── health.test.ts      # Health & readiness probe tests
+│   │   └── models.test.ts      # Mongoose models schema & enum tests
 │   ├── package.json            # Server dependencies & scripts
 │   ├── tsconfig.json           # Server TypeScript configuration
 │   └── .env.example            # Server environment template
@@ -48,7 +78,7 @@ evidra/
 ├── .gitignore                  # Git ignore rules for monorepo
 ├── .prettierrc                 # Code formatting rules
 ├── .prettierignore             # Prettier ignore targets
-├── eslint.config.js            # Unified ESLint configuration
+├── eslint.config.mjs           # Unified ESLint configuration
 ├── package.json                # Root package configuration & workspaces
 └── README.md                   # Project documentation
 ```
@@ -61,7 +91,7 @@ Ensure the following tools are installed on your machine:
 
 - **Node.js**: `v20.x` or higher (tested with `v24.x`)
 - **npm**: `v10.x` or higher (tested with `v11.x`)
-- **MongoDB Atlas**: An active MongoDB Atlas cluster or connection string (optional for initial health check skeleton)
+- **MongoDB**: An active MongoDB Atlas cluster URI or local MongoDB instance (tested with `mongodb://localhost:27017/evidra`)
 
 ---
 
@@ -104,7 +134,7 @@ JWT_EXPIRES_IN=7d
 VITE_API_URL=http://localhost:5000
 ```
 
-> **Note**: For initial health check testing, MongoDB credentials are not mandatory. If `MONGODB_URI` is omitted or unconfigured, the server logs a warning and provides health check status `database: disconnected` without crashing.
+> **Note**: For initial health check testing, MongoDB credentials are not mandatory. If `MONGODB_URI` is omitted or unconfigured, the server logs an informative warning and operates in offline mode without crashing.
 
 ---
 
@@ -115,6 +145,7 @@ VITE_API_URL=http://localhost:5000
 | `npm run dev`          | Runs both backend and frontend concurrently                               |
 | `npm run dev:server`   | Starts Express backend in watch mode via `tsx` on `http://localhost:5000` |
 | `npm run dev:client`   | Starts Vite dev server on `http://localhost:5173`                         |
+| `npm test`             | Runs backend test suite via Vitest                                        |
 | `npm run build`        | Compiles both backend (`tsc`) and frontend (`vite build`)                 |
 | `npm run build:server` | Compiles TypeScript backend into `server/dist`                            |
 | `npm run build:client` | Compiles Vite frontend into `client/dist`                                 |
@@ -126,11 +157,11 @@ VITE_API_URL=http://localhost:5000
 
 ---
 
-## Health Check Verification
+## Health & Readiness Verification
 
-### Backend Endpoint
+### Backend Liveness Probe (`GET /api/health`)
 
-Once the server is running, verify the health status:
+Verifies that the Express API process is running:
 
 ```bash
 curl http://localhost:5000/api/health
@@ -140,19 +171,57 @@ Expected response (`200 OK`):
 
 ```json
 {
-  "status": "ok",
-  "timestamp": "2026-10-16T11:45:00.000Z",
-  "uptime": 12,
-  "service": "evidra-api",
-  "version": "0.1.0",
-  "environment": "development",
-  "database": "disconnected"
+  "success": true,
+  "data": {
+    "status": "ok",
+    "timestamp": "2026-10-16T12:23:41.581Z",
+    "uptime": 12,
+    "service": "evidra-api",
+    "version": "0.1.0",
+    "environment": "development",
+    "database": "connected"
+  },
+  "message": "Service is healthy"
 }
 ```
 
-### Frontend UI
+### Backend Readiness Probe (`GET /api/ready`)
 
-Open `http://localhost:5173` in your browser. The Evidra Health Check dashboard displays live service status indicators and allows triggering live health checks against the backend.
+Verifies that dependencies (MongoDB) are ready to accept traffic:
+
+```bash
+curl http://localhost:5000/api/ready
+```
+
+- When MongoDB is connected (`200 OK`):
+  ```json
+  {
+    "success": true,
+    "data": {
+      "ready": true,
+      "checks": {
+        "database": "connected"
+      }
+    },
+    "message": "Service is ready to receive traffic"
+  }
+  ```
+- When MongoDB is disconnected (`503 Service Unavailable`):
+  ```json
+  {
+    "success": false,
+    "error": {
+      "code": "SERVICE_NOT_READY",
+      "message": "Service is not ready to receive traffic: database is not connected",
+      "details": {
+        "ready": false,
+        "checks": {
+          "database": "disconnected"
+        }
+      }
+    }
+  }
+  ```
 
 ---
 

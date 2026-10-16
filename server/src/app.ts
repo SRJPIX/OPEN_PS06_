@@ -1,66 +1,70 @@
-import express, { Application, Request, Response, NextFunction } from 'express';
+import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { config } from './config/env';
 import healthRoutes from './routes/health.routes';
+import { apiRateLimiter } from './middleware/rateLimiter';
+import { errorHandler, notFoundHandler } from './middleware/error.middleware';
+import { sendSuccess } from './utils/apiResponse';
 
 export const createApp = (): Application => {
   const app = express();
 
-  // Security Middleware
+  // 1. Security Headers via Helmet
   app.use(helmet());
 
-  // CORS Middleware - configured for HTTP-only cookies
-  const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  // 2. CORS - Allow configured frontend with credentials for HTTP-only cookies
   app.use(
     cors({
-      origin: clientUrl,
+      origin: config.CLIENT_URL,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowedHeaders: ['Content-Type', 'Authorization'],
     })
   );
 
-  // Body and Cookie Parsers
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
+  // 3. Body and Cookie Parsers
+  app.use(express.json({ limit: '10mb' }));
+  app.use(express.urlencoded({ extended: true, limit: '10mb' }));
   app.use(cookieParser());
 
-  // HTTP Request Logger (in development)
-  if (process.env.NODE_ENV !== 'test') {
-    app.use(morgan('dev'));
+  // 4. HTTP Request Logger (disabled during automated test execution)
+  if (config.NODE_ENV !== 'test') {
+    app.use(morgan(config.NODE_ENV === 'production' ? 'combined' : 'dev'));
   }
 
-  // Root endpoint
+  // 5. Global Rate Limiter for API endpoints
+  app.use('/api', apiRateLimiter);
+
+  // 6. Base Root Endpoint
   app.get('/', (_req: Request, res: Response) => {
-    res.status(200).json({
+    sendSuccess(res, {
       name: 'Evidra API',
       status: 'active',
       description: 'AI-Powered Placement Intelligence Platform API',
-      healthCheck: '/api/health',
+      version: '0.1.0',
+      endpoints: {
+        health: '/api/health',
+        ready: '/api/ready',
+      },
     });
   });
 
-  // Health check route
+  // 7. Health & Readiness Routes
   app.use('/api/health', healthRoutes);
-
-  // 404 Handler
-  app.use((_req: Request, res: Response) => {
-    res.status(404).json({
-      error: 'Not Found',
-      message: 'The requested resource was not found on this server',
-    });
+  // Direct readiness alias for GET /api/ready
+  app.use('/api/ready', (req: Request, res: Response, next) => {
+    req.url = '/ready';
+    return healthRoutes(req, res, next);
   });
 
-  // Global Error Handler
-  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
-    console.error('[ServerError]', err);
-    res.status(500).json({
-      error: 'InternalServerError',
-      message: process.env.NODE_ENV === 'production' ? 'An internal error occurred' : err.message,
-    });
-  });
+  // 8. 404 Handler for undefined routes
+  app.use(notFoundHandler);
+
+  // 9. Centralized Error Handler
+  app.use(errorHandler);
 
   return app;
 };
