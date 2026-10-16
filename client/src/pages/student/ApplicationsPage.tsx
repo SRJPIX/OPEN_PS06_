@@ -30,6 +30,16 @@ interface ApplicationDetailPayload {
   history: ApplicationHistoryItem[];
 }
 
+interface ApplicationsApiResponse {
+  applications: ApplicationItem[];
+  pagination?: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 export const ApplicationsPage: React.FC = () => {
   const { success, error: toastError } = useToast();
 
@@ -41,15 +51,19 @@ export const ApplicationsPage: React.FC = () => {
 
   // 1. Fetch All Applications for Authenticated Student
   const {
-    data: applications = [],
+    data: applicationsData,
     isLoading,
     isError,
     error,
     refetch,
-  } = useQuery<ApplicationItem[]>({
+  } = useQuery<ApplicationsApiResponse | ApplicationItem[]>({
     queryKey: ['student-applications'],
-    queryFn: () => api.get<ApplicationItem[]>('/applications/me'),
+    queryFn: () => api.get<ApplicationsApiResponse | ApplicationItem[]>('/applications/me'),
   });
+
+  const applications: ApplicationItem[] = Array.isArray(applicationsData)
+    ? applicationsData
+    : applicationsData?.applications || [];
 
   // 2. Fetch Selected Application Detail + Status History Timeline
   const {
@@ -82,10 +96,10 @@ export const ApplicationsPage: React.FC = () => {
 
   // Filter logic
   const filteredApps = applications.filter((app) => {
-    const jobTitle = typeof app.job === 'object' ? app.job?.title || '' : '';
+    const jobTitle = typeof app.job === 'object' && app.job ? app.job.title || '' : '';
     const companyName =
       typeof app.job === 'object' && app.job?.company && typeof app.job.company === 'object'
-        ? app.job.company.name
+        ? (app.job.company as any).name || ''
         : '';
     const matchesSearch =
       jobTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -93,23 +107,30 @@ export const ApplicationsPage: React.FC = () => {
 
     if (!matchesSearch) return false;
 
+    const normStatus = (app.currentStatus || '').toLowerCase();
+
     if (statusFilter === 'all') return true;
     if (statusFilter === 'active') {
-      return ['applied', 'screening', 'shortlisted', 'assessment', 'interview'].includes(
-        app.currentStatus
+      return ['applied', 'screening', 'shortlisted', 'assessment', 'interview', 'under_review'].includes(
+        normStatus
       );
     }
+    if (statusFilter === 'interview') {
+      return normStatus === 'interview';
+    }
     if (statusFilter === 'offered') {
-      return app.currentStatus === 'offered';
+      return normStatus === 'offered' || normStatus === 'offer';
     }
     if (statusFilter === 'closed') {
-      return ['rejected', 'withdrawn'].includes(app.currentStatus);
+      return ['rejected', 'withdrawn'].includes(normStatus);
     }
-    return app.currentStatus === statusFilter;
+    return normStatus === statusFilter.toLowerCase();
   });
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
+  const getStatusBadge = (status: string = '') => {
+    const s = status.toLowerCase();
+    switch (s) {
+      case 'offer':
       case 'offered':
         return <Badge variant="success">Offer Extended</Badge>;
       case 'interview':
@@ -118,6 +139,7 @@ export const ApplicationsPage: React.FC = () => {
         return <Badge variant="teal">Shortlisted</Badge>;
       case 'assessment':
         return <Badge variant="warning">Assessment Assigned</Badge>;
+      case 'under_review':
       case 'screening':
         return <Badge variant="neutral">Under Review</Badge>;
       case 'applied':
@@ -178,11 +200,15 @@ export const ApplicationsPage: React.FC = () => {
   }
 
   // Calculate high-level metrics
-  const activeCount = applications.filter((a) =>
-    ['applied', 'screening', 'shortlisted', 'assessment', 'interview'].includes(a.currentStatus)
-  ).length;
-  const interviewCount = applications.filter((a) => a.currentStatus === 'interview').length;
-  const offeredCount = applications.filter((a) => a.currentStatus === 'offered').length;
+  const activeCount = applications.filter((a) => {
+    const s = (a.currentStatus || '').toLowerCase();
+    return ['applied', 'screening', 'shortlisted', 'assessment', 'interview', 'under_review'].includes(s);
+  }).length;
+  const interviewCount = applications.filter((a) => (a.currentStatus || '').toLowerCase() === 'interview').length;
+  const offeredCount = applications.filter((a) => {
+    const s = (a.currentStatus || '').toLowerCase();
+    return s === 'offered' || s === 'offer';
+  }).length;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -277,10 +303,11 @@ export const ApplicationsPage: React.FC = () => {
       ) : (
         <div className="space-y-4">
           {filteredApps.map((app) => {
-            const job = typeof app.job === 'object' ? app.job : null;
-            const company = job?.company && typeof job.company === 'object' ? job.company : null;
+            const job = typeof app.job === 'object' && app.job ? app.job : null;
+            const company = job?.company && typeof job.company === 'object' ? (job.company as any) : null;
             const companyName = company?.name || 'Partner Company';
-            const canWithdraw = app.currentStatus !== 'withdrawn' && app.currentStatus !== 'rejected';
+            const normStatus = (app.currentStatus || '').toLowerCase();
+            const canWithdraw = normStatus !== 'withdrawn' && normStatus !== 'rejected';
 
             return (
               <Card
@@ -332,7 +359,7 @@ export const ApplicationsPage: React.FC = () => {
                     </Button>
 
                     {/* Interview Prep shortcut if in active stages */}
-                    {['screening', 'shortlisted', 'assessment', 'interview'].includes(app.currentStatus) && job?._id && (
+                    {['screening', 'shortlisted', 'assessment', 'interview', 'under_review'].includes(normStatus) && job?._id && (
                       <Link to={`/student/interview-prep?jobId=${job._id}`}>
                         <Button
                           variant="secondary"
@@ -383,14 +410,14 @@ export const ApplicationsPage: React.FC = () => {
             <div className="p-4 rounded-xl bg-[#070d18] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h4 className="text-base font-semibold text-white">
-                  {selectedDetail.application.job?.title}
+                  {selectedDetail.application?.job?.title || 'Job Opening'}
                 </h4>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {(selectedDetail.application.job?.company as any)?.name} • Applied on{' '}
-                  {formatDateTime(selectedDetail.application.appliedAt)}
+                  {((selectedDetail.application?.job as any)?.company?.name) || 'Partner Company'} • Applied on{' '}
+                  {formatDateTime(selectedDetail.application?.appliedAt || '')}
                 </p>
               </div>
-              <div>{getStatusBadge(selectedDetail.application.currentStatus)}</div>
+              <div>{getStatusBadge(selectedDetail.application?.currentStatus || '')}</div>
             </div>
 
             {/* Resume & Submission Info */}
@@ -399,9 +426,9 @@ export const ApplicationsPage: React.FC = () => {
                 <p className="text-slate-400 font-medium mb-1">Submitted Resume</p>
                 <div className="flex items-center gap-2 text-white font-medium">
                   <FileText className="w-4 h-4 text-blue-400" />
-                  <span>{selectedDetail.application.resume?.title || 'Verified ATS Resume'}</span>
+                  <span>{selectedDetail.application?.resume?.title || 'Verified ATS Resume'}</span>
                   <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300">
-                    v{selectedDetail.application.resume?.version || 1}
+                    v{selectedDetail.application?.resume?.version || 1}
                   </span>
                 </div>
               </div>
@@ -409,7 +436,7 @@ export const ApplicationsPage: React.FC = () => {
               <div className="p-3 rounded-lg bg-[#0e172e] border border-slate-800">
                 <p className="text-slate-400 font-medium mb-1">Compensation / Terms</p>
                 <p className="text-white font-medium">
-                  {selectedDetail.application.job?.salaryMin
+                  {selectedDetail.application?.job?.salaryMin
                     ? `${selectedDetail.application.job.salaryCurrency || 'INR'} ${selectedDetail.application.job.salaryMin.toLocaleString()} - ${selectedDetail.application.job.salaryMax?.toLocaleString() || 'DOE'}`
                     : 'Disclosed in interview stage'}
                 </p>
@@ -417,7 +444,7 @@ export const ApplicationsPage: React.FC = () => {
             </div>
 
             {/* Cover letter if present */}
-            {selectedDetail.application.coverLetter && (
+            {selectedDetail.application?.coverLetter && (
               <div className="p-3.5 rounded-lg bg-[#0e172e] border border-slate-800 text-xs space-y-1">
                 <p className="text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
                   Candidate Note / Cover Letter
@@ -432,16 +459,16 @@ export const ApplicationsPage: React.FC = () => {
             <div className="space-y-3">
               <h5 className="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
                 <Clock className="w-3.5 h-3.5 text-blue-400" />
-                Workflow History Log ({selectedDetail.history.length} Events)
+                Workflow History Log ({(selectedDetail.history || []).length} Events)
               </h5>
 
-              {selectedDetail.history.length === 0 ? (
+              {(!selectedDetail.history || selectedDetail.history.length === 0) ? (
                 <p className="text-xs text-slate-500 italic p-3 bg-[#070d18] rounded-lg border border-slate-800">
                   No subsequent transitions recorded yet.
                 </p>
               ) : (
                 <div className="relative pl-6 space-y-6 before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-800">
-                  {selectedDetail.history.map((event, idx) => (
+                  {(selectedDetail.history || []).map((event, idx) => (
                     <div key={event._id || idx} className="relative">
                       {/* Timeline dot */}
                       <div className="absolute -left-6 top-1.5 w-4 h-4 rounded-full bg-[#0b1329] border-2 border-blue-500 flex items-center justify-center">

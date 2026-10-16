@@ -33,13 +33,6 @@ router.use(requireAuth);
 router.get('/', requireRole('placement_officer', 'recruiter', 'admin'), listStudents);
 
 /**
- * @route   GET /api/students/:id
- * @desc    Placement officer & recruiter: detailed student profile with evidence and skills
- * @access  Private (Placement Officer, Recruiter, Admin)
- */
-router.get('/:id', requireRole('placement_officer', 'recruiter', 'admin'), getStudentDetailsById);
-
-/**
  * @route   GET /api/students/dashboard/stats
  * @desc    Get real database-backed statistics for student dashboard
  * @access  Private (Student)
@@ -94,6 +87,13 @@ router.get('/projects', requireStudent, getStudentProjects);
  * @access  Private (Student)
  */
 router.post('/projects', requireStudent, validateBody(createProjectSchema), createStudentProject);
+
+/**
+ * @route   GET /api/students/:id
+ * @desc    Placement officer & recruiter: detailed student profile with evidence and skills
+ * @access  Private (Placement Officer, Recruiter, Admin)
+ */
+router.get('/:id', requireRole('placement_officer', 'recruiter', 'admin'), getStudentDetailsById);
 
 export default router;
 

@@ -144,8 +144,12 @@ export const AssessmentProjectEvidencePage: React.FC = () => {
     );
   }
 
-  const assessments = assessmentsData || [];
-  const projects = projectsData || [];
+  const assessments: AssessmentItem[] = Array.isArray(assessmentsData)
+    ? assessmentsData
+    : (assessmentsData as any)?.assessments || [];
+  const projects: ProjectItem[] = Array.isArray(projectsData)
+    ? projectsData
+    : (projectsData as any)?.projects || [];
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
