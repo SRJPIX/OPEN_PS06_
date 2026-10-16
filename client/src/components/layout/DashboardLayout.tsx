@@ -99,6 +99,12 @@ export const DashboardLayout: React.FC = () => {
           badge: 'Prep',
         },
         {
+          label: 'Alumni Network',
+          href: '/student/alumni',
+          icon: <GraduationCap className="w-4 h-4 text-blue-400" />,
+          badge: 'Referrals',
+        },
+        {
           label: 'Account & Security',
           href: '/student/settings',
           icon: <Settings className="w-4 h-4" />,

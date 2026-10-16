@@ -16,6 +16,8 @@ import resumeRoutes from './routes/resume.routes';
 import applicationRoutes from './routes/application.routes';
 import officerRoutes from './routes/officer.routes';
 import recruiterRoutes from './routes/recruiter.routes';
+import alumniRoutes from './routes/alumni.routes';
+import interviewRoutes from './routes/interview.routes';
 import { apiRateLimiter } from './middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { sendSuccess } from './utils/apiResponse';
@@ -120,6 +122,8 @@ export const createApp = (): Application => {
   app.use('/api/applications', applicationRoutes);
   app.use('/api/officer', officerRoutes);
   app.use('/api/recruiter', recruiterRoutes);
+  app.use('/api/alumni', alumniRoutes);
+  app.use('/api/interviews', interviewRoutes);
 
   // 9. 404 Handler for undefined routes
   app.use(notFoundHandler);

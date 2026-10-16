@@ -23,6 +23,7 @@ import { ResumeBuilderPage } from './pages/student/ResumeBuilderPage';
 import { UploadedResumeAnalysisPage } from './pages/student/UploadedResumeAnalysisPage';
 import { ApplicationsPage } from './pages/student/ApplicationsPage';
 import { InterviewPrepPage } from './pages/student/InterviewPrepPage';
+import { AlumniDirectoryPage } from './pages/student/AlumniDirectoryPage';
 import { SettingsPage } from './pages/student/SettingsPage';
 import { PlacementDashboard } from './pages/officer/PlacementDashboard';
 import { StudentDirectoryPage } from './pages/officer/StudentDirectoryPage';
@@ -72,6 +73,7 @@ export const App: React.FC = () => {
                     <Route path="/student/resume-analysis" element={<UploadedResumeAnalysisPage />} />
                     <Route path="/student/applications" element={<ApplicationsPage />} />
                     <Route path="/student/interview-prep" element={<InterviewPrepPage />} />
+                    <Route path="/student/alumni" element={<AlumniDirectoryPage />} />
                     <Route path="/student/settings" element={<SettingsPage />} />
                   </Route>
 

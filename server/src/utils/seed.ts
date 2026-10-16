@@ -14,6 +14,8 @@ import { Resume, IResume } from '../models/Resume';
 import { ResumeClaim } from '../models/ResumeClaim';
 import { Application, IApplication } from '../models/Application';
 import { ApplicationStatusHistory } from '../models/ApplicationStatusHistory';
+import { AlumniProfile } from '../models/AlumniProfile';
+import { InterviewReport } from '../models/InterviewReport';
 import { hashPassword } from './password';
 import { seedCanonicalSkills } from './skillNormalizer';
 
@@ -85,6 +87,8 @@ export const seedDemoUsers = async (): Promise<ComprehensiveSeedResult> => {
   await Job.deleteMany({ _id: { $in: demoJobIds } });
   await JobSource.deleteMany({ name: { $regex: /\[DEMO\]/ } });
   await Company.deleteMany({ _id: { $in: demoCompanyIds } });
+  await AlumniProfile.deleteMany({ email: { $regex: /@alumni\.univ\.edu$/ } });
+  await InterviewReport.deleteMany({ companyName: { $regex: /\[DEMO\]/ } });
   await User.deleteMany({ _id: { $in: demoUserIds } });
 
   // 1. Fetch Canonical Skills
@@ -1348,6 +1352,146 @@ export const seedDemoUsers = async (): Promise<ComprehensiveSeedResult> => {
     appliedAt: new Date('2026-01-15'),
     notes: 'Did not meet technical assessment threshold (unverified skill claims).',
   });
+
+  // 12. Seed Alumni Referral Profiles
+  console.log('[Seed] Seeding verified alumni referral directory...');
+  await AlumniProfile.create([
+    {
+      fullName: 'Priya Sharma',
+      email: 'priya.sharma@alumni.univ.edu',
+      graduationYear: 2023,
+      degree: 'B.Tech Computer Science',
+      department: 'Computer Science',
+      companyName: 'Acme Innovations [DEMO]',
+      designation: 'Senior Frontend Architect',
+      experienceYears: 3,
+      location: 'Bengaluru, India',
+      linkedinUrl: 'https://linkedin.com/in/priya-sharma-evidra',
+      referralAvailable: true,
+      maxReferralsPerMonth: 5,
+      activeReferralsCount: 1,
+      preferredSkills: ['React', 'TypeScript', 'Next.js'],
+      referralGuidelines: 'Must have at least 2 verified production web apps and strong data structures fundamentals.',
+      isVerified: true,
+    },
+    {
+      fullName: 'Rahul Mehta',
+      email: 'rahul.mehta@alumni.univ.edu',
+      graduationYear: 2024,
+      degree: 'B.Tech Information Technology',
+      department: 'Information Technology',
+      companyName: 'Nimbus Cloud Infrastructure [DEMO]',
+      designation: 'Cloud Systems Engineer',
+      experienceYears: 2,
+      location: 'Hyderabad, India',
+      linkedinUrl: 'https://linkedin.com/in/rahul-mehta-evidra',
+      referralAvailable: true,
+      maxReferralsPerMonth: 3,
+      activeReferralsCount: 0,
+      preferredSkills: ['Docker', 'Kubernetes', 'Go'],
+      referralGuidelines: 'Looking for graduates with strong hands-on Linux, containerization and CI/CD pipelines.',
+      isVerified: true,
+    },
+    {
+      fullName: 'Ananya Roy',
+      email: 'ananya.roy@alumni.univ.edu',
+      graduationYear: 2022,
+      degree: 'B.Tech Computer Science',
+      department: 'Computer Science',
+      companyName: 'FinTech Global Systems [DEMO]',
+      designation: 'Lead Distributed Systems Engineer',
+      experienceYears: 4,
+      location: 'Mumbai, India',
+      linkedinUrl: 'https://linkedin.com/in/ananya-roy-evidra',
+      referralAvailable: true,
+      maxReferralsPerMonth: 4,
+      activeReferralsCount: 2,
+      preferredSkills: ['Java', 'Spring Boot', 'Kafka'],
+      referralGuidelines: 'Referrals granted to students who have implemented low-latency message streaming or microservices.',
+      isVerified: true,
+    },
+  ]);
+
+  // 13. Seed Company Interview Reports & Question Bank
+  console.log('[Seed] Seeding company interview questions and candidate reports...');
+  await InterviewReport.create([
+    {
+      student: createdStudentUsers[0]._id, // Alice
+      companyName: 'Acme Innovations [DEMO]',
+      role: 'Frontend Engineering Intern',
+      driveYear: 2026,
+      difficulty: 'medium',
+      outcome: 'offered',
+      isAnonymous: false,
+      overallExperience: 'Clear and transparent evaluation. Deep dive into React rendering cycle and TypeScript type system.',
+      preparationTips: 'Focus on React Fiber architecture, useMemo/useCallback pitfalls, and writing clean type definitions without any.',
+      moderationStatus: 'approved',
+      rounds: [
+        {
+          roundNumber: 1,
+          roundName: 'Online Coding Assessment',
+          durationMinutes: 90,
+          questions: [
+            {
+              question: 'Implement a debounced search input component with abortable fetch requests.',
+              topic: 'React & Web APIs',
+              difficulty: 'medium',
+              tips: 'Use AbortController inside useEffect cleanup.',
+            },
+            {
+              question: 'Flatten a nested JSON object into a single-level dot-notated map in O(N).',
+              topic: 'Algorithms & Data Structures',
+              difficulty: 'medium',
+            },
+          ],
+        },
+        {
+          roundNumber: 2,
+          roundName: 'System Architecture & Live Component Design',
+          durationMinutes: 60,
+          questions: [
+            {
+              question: 'How do you design a virtualized list to render 100,000 evidence items smoothly at 60 FPS?',
+              topic: 'Performance & Frontend Architecture',
+              difficulty: 'hard',
+              tips: 'Calculate window offset and dynamically mount only visible DOM rows.',
+            },
+          ],
+        },
+      ],
+    },
+    {
+      student: createdStudentUsers[1]._id, // Bob
+      companyName: 'Nimbus Cloud Infrastructure [DEMO]',
+      role: 'Cloud Operations Associate',
+      driveYear: 2026,
+      difficulty: 'hard',
+      outcome: 'offered',
+      isAnonymous: true,
+      overallExperience: 'Challenging scenarios involving live debugging of crashed microservices and Terraform drift.',
+      preparationTips: 'Understand Kubernetes pods lifecycle, iptables packet routing, and multi-region state management.',
+      moderationStatus: 'approved',
+      rounds: [
+        {
+          roundNumber: 1,
+          roundName: 'Infrastructure & Linux Internals',
+          durationMinutes: 60,
+          questions: [
+            {
+              question: 'Explain the difference between process isolation with Linux namespaces vs cgroups.',
+              topic: 'Linux Internals',
+              difficulty: 'hard',
+            },
+            {
+              question: 'Troubleshoot a scenario where a container has 100% CPU throttling without reaching memory limit.',
+              topic: 'Kubernetes & Docker',
+              difficulty: 'hard',
+            },
+          ],
+        },
+      ],
+    },
+  ]);
 
   console.log('[Seed] Demonstration dataset created successfully!');
   console.log('----------------------------------------------------');
