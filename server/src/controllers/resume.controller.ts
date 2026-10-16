@@ -38,11 +38,26 @@ const authorizeResumeAccess = async (req: Request, resume: IResume): Promise<voi
 
   if (req.user.role === 'recruiter') {
     // Recruiter can access resume if student applied to one of their company jobs
-    const hasApplication = await Application.findOne({
-      resume: resume._id,
-    });
-    if (!hasApplication) {
+    const applications = await Application.find({ resume: resume._id }).populate('job');
+    if (!applications || applications.length === 0) {
       throw ApiError.forbidden('Recruiter access denied: No active application found for this candidate resume.');
+    }
+    const { Company } = await import('../models/Company');
+    const userCompany = await Company.findOne({
+      $or: [
+        { createdBy: new Types.ObjectId(req.user.userId) },
+        { authorizedRecruiters: new Types.ObjectId(req.user.userId) },
+      ],
+    });
+    if (!userCompany) {
+      throw ApiError.forbidden('Recruiter access denied: No company assigned to this recruiter account.');
+    }
+    const hasCompanyApp = applications.some((app) => {
+      const jobCompany = (app.job as any)?.company;
+      return jobCompany && jobCompany.toString() === userCompany._id.toString();
+    });
+    if (!hasCompanyApp) {
+      throw ApiError.forbidden('Recruiter access denied: Candidate has not applied to a job at your company.');
     }
     return;
   }
