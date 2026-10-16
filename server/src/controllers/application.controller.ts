@@ -970,7 +970,7 @@ export const getPlacementApplicationStats = async (
         ],
       })
       .populate('changedBy', 'email role')
-      .sort({ changedAt: -1 })
+      .sort({ changedAt: -1, _id: -1 })
       .limit(10);
 
     sendSuccess(

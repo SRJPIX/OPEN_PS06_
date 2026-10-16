@@ -247,9 +247,19 @@ export const getRecruiterJobCandidates = async (
         },
         fitScore: match.fitScore,
         eligibility: match.eligibility,
-        supportedSkills: match.supportedSkills,
-        missingRequiredSkills: match.missingRequiredSkills,
-        missingPreferredSkills: match.missingPreferredSkills,
+        supportedSkills: match.supportedSkills.map((s) => ({
+          skillId: s.skillId,
+          name: s.skillName,
+          score: Math.round(s.evidenceValue * 100),
+        })),
+        missingRequiredSkills: match.requiredSkillGaps.map((s) => ({
+          skillId: s.skillId,
+          name: s.skillName,
+        })),
+        missingPreferredSkills: match.preferredSkillGaps.map((s) => ({
+          skillId: s.skillId,
+          name: s.skillName,
+        })),
       };
     });
 
