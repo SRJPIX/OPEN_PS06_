@@ -95,3 +95,4 @@ export const exportApplicationsToCsv = (applications: any[]): string => {
 
   return [headers.join(','), ...rows].join('\r\n');
 };
+
