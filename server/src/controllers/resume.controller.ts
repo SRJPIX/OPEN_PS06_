@@ -7,6 +7,8 @@ import { StudentSkill } from '../models/StudentSkill';
 import { Evidence } from '../models/Evidence';
 import { Job } from '../models/Job';
 import { Project } from '../models/Project';
+import { User } from '../models/User';
+import { AuditLog } from '../models/AuditLog';
 import { ApiError } from '../utils/apiError';
 import { sendSuccess } from '../utils/apiResponse';
 import { CANONICAL_SKILLS } from '../utils/skillNormalizer';
@@ -357,6 +359,181 @@ export const deleteResume = async (
     await resume.deleteOne();
 
     sendSuccess(res, null, 'Resume and associated claims deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * GET /api/resumes/claims
+ * Placement officer: list resume claims with filters for unsupported claims, types, and search.
+ */
+export const listResumeClaims = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    const page = parseInt(req.query.page as string, 10) || 1;
+    const limit = parseInt(req.query.limit as string, 10) || 15;
+    const isVerified = req.query.isVerified as string;
+    const claimType = req.query.claimType as string;
+    const search = req.query.search as string;
+    const studentId = req.query.studentId as string;
+
+    const query: Record<string, unknown> = {};
+
+    if (isVerified === 'true') {
+      query.isVerified = true;
+    } else if (isVerified === 'false') {
+      query.isVerified = false;
+    }
+
+    if (claimType && claimType !== 'all') {
+      query.claimType = claimType;
+    }
+
+    if (studentId && Types.ObjectId.isValid(studentId)) {
+      query.student = new Types.ObjectId(studentId);
+    }
+
+    if (search && search.trim()) {
+      const trimmed = search.trim();
+      const matchingUsers = await User.find({ email: { $regex: trimmed, $options: 'i' } }).select(
+        '_id'
+      );
+      const matchingProfiles = await StudentProfile.find({
+        $or: [
+          { rollNumber: { $regex: trimmed, $options: 'i' } },
+          { user: { $in: matchingUsers.map((u) => u._id) } },
+        ],
+      }).select('_id');
+
+      query.$or = [
+        { text: { $regex: trimmed, $options: 'i' } },
+        { student: { $in: matchingProfiles.map((p) => p._id) } },
+      ];
+    }
+
+    const skip = (page - 1) * limit;
+
+    const [claims, total, totalUnverified, totalVerified] = await Promise.all([
+      ResumeClaim.find(query)
+        .populate({
+          path: 'student',
+          select: 'rollNumber department degree graduationYear cgpa',
+          populate: { path: 'user', select: 'email' },
+        })
+        .populate('resume', 'title version status isPrimary')
+        .populate({
+          path: 'evidence',
+          populate: { path: 'skills', select: 'name slug category' },
+        })
+        .sort({ isVerified: 1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit),
+      ResumeClaim.countDocuments(query),
+      ResumeClaim.countDocuments({ isVerified: false }),
+      ResumeClaim.countDocuments({ isVerified: true }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit) || 1;
+
+    sendSuccess(res, claims, 'Resume claims retrieved successfully', 200, {
+      page,
+      limit,
+      total,
+      totalPages,
+      totalUnverified,
+      totalVerified,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /api/resumes/claims/:id/verify
+ * Placement officer: verify or reject/unverify a resume claim, assign confidence score, and link evidence.
+ */
+export const verifyResumeClaim = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  try {
+    if (!req.user) throw ApiError.unauthorized('Authentication required.');
+
+    const id = req.params.id as string;
+    if (!id || !Types.ObjectId.isValid(id)) {
+      throw ApiError.badRequest('Invalid claim ID format.');
+    }
+
+    const { isVerified, confidenceScore, evidenceIds, notes } = req.body as {
+      isVerified: boolean;
+      confidenceScore?: number;
+      evidenceIds?: string[];
+      notes?: string;
+    };
+
+    const claim = await ResumeClaim.findById(id);
+    if (!claim) throw ApiError.notFound('Resume claim not found.');
+
+    const previousVerified = claim.isVerified;
+    claim.isVerified = isVerified;
+
+    if (confidenceScore !== undefined) {
+      claim.confidenceScore = Math.min(100, Math.max(0, confidenceScore));
+    } else {
+      claim.confidenceScore = isVerified ? 90 : 20;
+    }
+
+    if (evidenceIds && Array.isArray(evidenceIds)) {
+      const validEvIds = evidenceIds
+        .filter((eId) => Types.ObjectId.isValid(eId))
+        .map((eId) => new Types.ObjectId(eId));
+      claim.evidence = validEvIds;
+    }
+
+    await claim.save();
+
+    await claim.populate([
+      {
+        path: 'student',
+        select: 'rollNumber department graduationYear',
+        populate: { path: 'user', select: 'email' },
+      },
+      { path: 'resume', select: 'title version' },
+      {
+        path: 'evidence',
+        populate: { path: 'skills', select: 'name slug category' },
+      },
+    ]);
+
+    // Audit Log
+    AuditLog.create({
+      user: req.user._id,
+      action: isVerified ? 'RESUME_CLAIM_VERIFIED' : 'RESUME_CLAIM_UNVERIFIED',
+      entityType: 'ResumeClaim',
+      entityId: claim._id.toString(),
+      ipAddress: req.ip,
+      userAgent: req.headers['user-agent'],
+      details: {
+        text: claim.text,
+        previousVerified,
+        newVerified: isVerified,
+        confidenceScore: claim.confidenceScore,
+        notes,
+      },
+    }).catch((err) => console.error('[AuditLog] Resume claim verification log failed:', err));
+
+    sendSuccess(
+      res,
+      claim,
+      isVerified
+        ? 'Resume claim successfully verified with evidence backing'
+        : 'Resume claim marked unverified'
+    );
   } catch (error) {
     next(error);
   }

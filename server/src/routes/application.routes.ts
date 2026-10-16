@@ -4,12 +4,28 @@ import {
   getApplicationById,
   submitApplication,
   withdrawApplication,
+  listApplications,
+  updateApplicationStatus,
 } from '../controllers/application.controller';
-import { requireAuth, requireStudent } from '../middleware/auth.middleware';
+import { requireAuth, requireStudent, requireRole } from '../middleware/auth.middleware';
 
 const router = Router();
 
 router.use(requireAuth);
+
+/**
+ * @route   GET /api/applications
+ * @desc    Get all applications across jobs with filters & pagination
+ * @access  Private (Placement Officer, Recruiter, Admin)
+ */
+router.get('/', requireRole('placement_officer', 'recruiter', 'admin'), listApplications);
+
+/**
+ * @route   PATCH /api/applications/:id/status
+ * @desc    Update application status through authoritative transitions
+ * @access  Private (Placement Officer, Recruiter, Admin)
+ */
+router.patch('/:id/status', requireRole('placement_officer', 'recruiter', 'admin'), updateApplicationStatus);
 
 /**
  * @route   GET /api/applications/me
