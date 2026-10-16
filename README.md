@@ -605,3 +605,65 @@ client/src/
 │   └── NotFoundPage.tsx         # 404 handler
 └── App.tsx                      # Top-level routing and providers
 ```
+
+---
+
+## Frontend Design System & Architecture
+
+Evidra's client foundation is built on React 19, Vite, TypeScript, and Tailwind CSS v4, delivering a high-performance, dark-mode-first aesthetic with strict cryptographic and audit transparency.
+
+### Brand Identity & Design Tokens
+
+- **Brand Name**: Evidra
+- **Tagline**: Every skill. Proven.
+- **Palette Tokens**:
+  - Deep Navy Surfaces: `--color-navy-950` (`#070d18`), `--color-navy-900` (`#0b1329`), `--color-navy-800` (`#111d38`)
+  - Electric Blue Brand: `--color-electric-600` (`#1d4ed8`), `--color-electric-500` (`#2563eb`), `--color-electric-400` (`#3b82f6`)
+  - Teal Accents: `--color-teal-600` (`#0d9488`), `--color-teal-500` (`#14b8a6`), `--color-teal-400` (`#2dd4bf`)
+  - Restrained Shadows: subtle black & navy glow drop-shadows
+
+### Reusable UI Kit (`client/src/components/ui/`)
+
+- **`Button`**: Variants (`primary`, `secondary`, `outline`, `ghost`, `danger`, `teal`), sizes (`sm`, `md`, `lg`), built-in spinner loader, left/right icon slots.
+- **`Input`**: Standard input wrapper with floating labels, required indicator, left/right icon slots, error message display, and helper texts.
+- **`Card`**: Compound components (`Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`) with hover glow animations.
+- **`Badge`**: Variants (`default`, `electric`, `teal`, `success`, `warning`, `danger`, `neutral`), sizes (`sm`, `md`), with optional pulsating status dot.
+- **`Table`**: Semantic HTML table system (`Table`, `TableHeader`, `TableBody`, `TableFooter`, `TableRow`, `TableHead`, `TableCell`, `TableCaption`) with responsive scroll container.
+- **`Dialog`**: Accessible modal dialog with backdrop blur, keyboard `Escape` trap, backdrop dismiss, and custom footer action buttons.
+- **`Tooltip`**: Floating hover/focus tooltip with directional anchor placement (`top`, `bottom`, `left`, `right`).
+- **`Skeleton`**: Accessible pulse loading placeholder with configurable radius and size.
+- **`EmptyState`**: Placeholder block with icon, headline, description, primary and secondary CTA buttons.
+- **`ErrorState`**: Error banner with retry button, message, and icon for failed query states.
+- **`Toast`**: Context-driven non-blocking notification system (`useToast()`) with auto-dismissal, semantic color coding, and manual dismiss triggers.
+
+### Client State & Navigation Architecture
+
+```
+client/src/
+├── components/
+│   ├── layout/
+│   │   ├── Navbar.tsx           # Responsive header with session detection
+│   │   ├── Footer.tsx           # Brand footer with engine status
+│   │   ├── PublicLayout.tsx     # Shell for public landing/auth pages
+│   │   ├── DashboardLayout.tsx  # Responsive sidebar shell for authenticated roles
+│   │   ├── ProtectedRoute.tsx   # Session verification guard (redirects unauthenticated)
+│   │   └── RoleRoute.tsx        # Role-based clearance guard (student, officer, recruiter)
+│   └── ui/                      # Complete UI design system library
+├── context/
+│   ├── AuthContext.tsx          # Cookie-based session restore via /api/auth/me
+│   └── ToastContext.tsx         # Notification queue provider
+├── lib/
+│   ├── api.ts                   # Credentials-enabled REST client with ApiClientError
+│   ├── queryClient.ts           # TanStack QueryClient with caching policies
+│   └── utils.ts                 # Classnames merge utility
+├── pages/
+│   ├── LandingPage.tsx          # Product overview, pillars, and workflow
+│   ├── LoginPage.tsx            # Form validation + demo user quick-fill
+│   ├── RegisterPage.tsx         # Student registration with Zod validation
+│   ├── student/                 # Student portal shell & evidence overview
+│   ├── officer/                 # Placement officer command center
+│   ├── recruiter/               # Recruiter talent & requisition dashboard
+│   └── NotFoundPage.tsx         # 404 handler
+└── App.tsx                      # Top-level routing and providers
+```
+

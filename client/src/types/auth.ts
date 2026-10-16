@@ -60,3 +60,4 @@ export interface RegisterStudentData {
   phone?: string;
   bio?: string;
 }
+
