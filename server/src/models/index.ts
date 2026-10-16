@@ -13,3 +13,4 @@ export * from './ResumeClaim';
 export * from './Application';
 export * from './ApplicationStatusHistory';
 export * from './AuditLog';
+export * from './PlacementSetting';

@@ -1,16 +1,53 @@
 import { Router } from 'express';
+import multer from 'multer';
 import {
   getMyResumes,
   getResumeById,
   generateResume,
-  analyzeUploadedResume,
+  getResumeProvenance,
+  downloadResumePdf,
+  uploadAndAnalyzeResume,
+  updateResumeClaim,
+  linkEvidenceToClaim,
+  deleteResumeClaim,
   deleteResume,
+  listResumeClaims,
+  verifyResumeClaim,
 } from '../controllers/resume.controller';
-import { requireAuth, requireStudent } from '../middleware/auth.middleware';
+import { requireAuth, requireStudent, requireRole } from '../middleware/auth.middleware';
 
 const router = Router();
 
+// Configure multer for secure PDF uploads (max 5MB, PDF only)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5MB limit
+  },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type: Only PDF documents are supported'));
+    }
+  },
+});
+
 router.use(requireAuth);
+
+/**
+ * @route   GET /api/resumes/claims
+ * @desc    Placement officer: list resume claims for verification review
+ * @access  Private (Placement Officer, Admin)
+ */
+router.get('/claims', requireRole('placement_officer', 'admin'), listResumeClaims);
+
+/**
+ * @route   POST /api/resumes/claims/:id/verify
+ * @desc    Placement officer: verify or unverify a resume claim
+ * @access  Private (Placement Officer, Admin)
+ */
+router.post('/claims/:id/verify', requireRole('placement_officer', 'admin'), verifyResumeClaim);
 
 /**
  * @route   GET /api/resumes/me
@@ -27,11 +64,66 @@ router.get('/me', requireStudent, getMyResumes);
 router.post('/generate', requireStudent, generateResume);
 
 /**
- * @route   POST /api/resumes/analyze-upload
- * @desc    Upload & analyze resume text/claims against verified evidence
+ * @route   POST /api/resumes/upload-and-analyze
+ * @desc    Upload & analyze resume PDF (or text) against verified evidence vault
  * @access  Private (Student)
  */
-router.post('/analyze-upload', requireStudent, analyzeUploadedResume);
+router.post(
+  '/upload-and-analyze',
+  requireStudent,
+  (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          return res.status(400).json({
+            success: false,
+            message: 'File size exceeds maximum permitted limit of 5MB.',
+          });
+        }
+        return res.status(400).json({ success: false, message: err.message });
+      } else if (err) {
+        return res.status(400).json({ success: false, message: err.message });
+      }
+      next();
+    });
+  },
+  uploadAndAnalyzeResume
+);
+
+/**
+ * @route   GET /api/resumes/:id/pdf
+ * @desc    Download or preview selectable-text ATS resume PDF
+ * @access  Private (Student owner, Placement Officer, Admin, Recruiter)
+ */
+router.get('/:id/pdf', downloadResumePdf);
+
+/**
+ * @route   GET /api/resumes/:id/provenance
+ * @desc    Get bullet-level evidence provenance and exclusions explanation
+ * @access  Private (Student owner, Placement Officer, Admin, Recruiter)
+ */
+router.get('/:id/provenance', getResumeProvenance);
+
+/**
+ * @route   PATCH /api/resumes/claims/:id
+ * @desc    Student: correct an extracted claim's text
+ * @access  Private (Student)
+ */
+router.patch('/claims/:id', requireStudent, updateResumeClaim);
+
+/**
+ * @route   POST /api/resumes/claims/:id/link-evidence
+ * @desc    Student: link evidence from vault to substantiate an unsupported claim
+ * @access  Private (Student)
+ */
+router.post('/claims/:id/link-evidence', requireStudent, linkEvidenceToClaim);
+
+/**
+ * @route   DELETE /api/resumes/claims/:id
+ * @desc    Student: remove an inaccurate or unwanted claim
+ * @access  Private (Student)
+ */
+router.delete('/claims/:id', requireStudent, deleteResumeClaim);
 
 /**
  * @route   GET /api/resumes/:id
@@ -48,4 +140,3 @@ router.get('/:id', getResumeById);
 router.delete('/:id', requireStudent, deleteResume);
 
 export default router;
-
