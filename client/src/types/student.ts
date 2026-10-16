@@ -220,7 +220,13 @@ export interface ApplicationItem {
     | 'interview'
     | 'offered'
     | 'rejected'
-    | 'withdrawn';
+    | 'withdrawn'
+    | 'APPLIED'
+    | 'UNDER_REVIEW'
+    | 'INTERVIEW'
+    | 'OFFER'
+    | 'REJECTED'
+    | 'WITHDRAWN';
   appliedAt: string;
   coverLetter?: string;
   createdAt: string;
