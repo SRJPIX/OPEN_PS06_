@@ -40,3 +40,4 @@ router.get('/:id', getApplicationById);
 router.patch('/:id/withdraw', requireStudent, withdrawApplication);
 
 export default router;
+

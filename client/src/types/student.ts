@@ -280,3 +280,4 @@ export interface DashboardStatsData {
   recentApplications: ApplicationItem[];
   recentEvidence: EvidenceItem[];
 }
+

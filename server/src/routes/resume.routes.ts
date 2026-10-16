@@ -48,3 +48,4 @@ router.get('/:id', getResumeById);
 router.delete('/:id', requireStudent, deleteResume);
 
 export default router;
+
