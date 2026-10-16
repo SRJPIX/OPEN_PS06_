@@ -26,4 +26,12 @@ export const createRateLimiter = (options?: {
   });
 };
 
+// General API rate limiter (100 reqs / 15 mins)
 export const apiRateLimiter = createRateLimiter();
+
+// Stricter rate limiter for authentication endpoints (10 attempts / 15 mins)
+export const authRateLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  message: 'Too many authentication attempts. Please try again after 15 minutes.',
+});

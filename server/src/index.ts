@@ -1,24 +1,35 @@
 import { config } from './config/env';
 import { createApp } from './app';
 import { connectDB, disconnectDB } from './config/db';
+import { seedDemoUsers } from './utils/seed';
 
 const startServer = async () => {
   console.log(`[Evidra API] Initializing in ${config.NODE_ENV} environment...`);
 
   // 1. Establish MongoDB connection
-  await connectDB(config.MONGODB_URI);
+  const dbConnected = await connectDB(config.MONGODB_URI);
 
-  // 2. Create Express app
+  // 2. Optional development-only demo user seed
+  if (dbConnected && config.SEED_DEMO_USERS && config.NODE_ENV !== 'production') {
+    try {
+      await seedDemoUsers();
+    } catch (err) {
+      console.error('[Evidra API] Error seeding demo users on startup:', err);
+    }
+  }
+
+  // 3. Create Express app
   const app = createApp();
 
-  // 3. Start listening
+  // 4. Start listening
   const server = app.listen(config.PORT, () => {
     console.log(`[Evidra API] HTTP Server listening on port ${config.PORT}`);
     console.log(`[Evidra API] Liveness check: http://localhost:${config.PORT}/api/health`);
     console.log(`[Evidra API] Readiness check: http://localhost:${config.PORT}/api/ready`);
+    console.log(`[Evidra API] Auth endpoints: http://localhost:${config.PORT}/api/auth`);
   });
 
-  // 4. Graceful shutdown handler
+  // 5. Graceful shutdown handler
   let isShuttingDown = false;
   const gracefulShutdown = async (signal: string) => {
     if (isShuttingDown) return;

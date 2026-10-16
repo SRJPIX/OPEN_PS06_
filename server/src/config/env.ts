@@ -17,6 +17,11 @@ export const envSchema = z.object({
     .min(32, 'JWT_SECRET must be at least 32 characters long')
     .default('super_secret_jwt_key_that_is_at_least_32_characters_long_for_dev'),
   JWT_EXPIRES_IN: z.string().default('7d'),
+  COOKIE_NAME: z.string().default('evidra_token'),
+
+  // Development seeding controls (strictly unavailable in production)
+  SEED_DEMO_USERS: z.coerce.boolean().default(false),
+  DEMO_USER_PASSWORD: z.string().default('EvidraDemo123!'),
 
   // Optional AI Provider Variables (Backend runs even if absent)
   GEMINI_API_KEY: z.string().optional(),
@@ -52,6 +57,11 @@ export const validateEnv = (envToValidate: NodeJS.ProcessEnv = process.env): Env
     if (result.data.JWT_SECRET.includes('super_secret_jwt_key_that_is_at_least_32')) {
       throw new Error(
         '[Configuration Error] Production JWT_SECRET cannot use the default placeholder.'
+      );
+    }
+    if (result.data.SEED_DEMO_USERS) {
+      throw new Error(
+        '[Configuration Error] SEED_DEMO_USERS cannot be enabled in production mode.'
       );
     }
   }

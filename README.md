@@ -11,7 +11,7 @@ Evidra is an AI-powered placement intelligence platform designed to bridge stude
 | **Frontend**       | React 19, Vite, TypeScript, Tailwind CSS                |
 | **Backend**        | Node.js, Express, TypeScript, Zod, Rate Limiter, Helmet |
 | **Database**       | MongoDB Atlas, Mongoose ODM                             |
-| **Authentication** | JWT stored in secure HTTP-only cookies                  |
+| **Authentication** | JWT stored in secure HTTP-only cookies, bcryptjs        |
 | **Deployment**     | Vercel (Frontend SPA) & Render (Backend API Service)    |
 | **Tooling**        | ESLint, Prettier, Concurrently, tsx, Vitest, Supertest  |
 
@@ -35,12 +35,17 @@ evidra/
 │   └── .env.example            # Client environment template
 ├── server/                     # Backend REST API Service
 │   ├── src/
-│   │   ├── config/             # DB & environment configuration
+│   │   ├── config/             # DB, environment & cookie configuration
+│   │   │   ├── cookie.ts       # Secure HTTP-only cookie configuration
 │   │   │   ├── db.ts           # MongoDB connection lifecycle & readiness
 │   │   │   └── env.ts          # Zod startup environment validation
+│   │   ├── controllers/        # Route controllers
+│   │   │   └── auth.controller.ts # Registration, login, logout, session restoration
 │   │   ├── middleware/         # Express middlewares
+│   │   │   ├── auth.middleware.ts # JWT authentication & role-based guards
 │   │   │   ├── error.middleware.ts # Centralised error & 404 handlers
-│   │   │   └── rateLimiter.ts  # Express rate limiting
+│   │   │   ├── rateLimiter.ts  # General and auth rate limiting
+│   │   │   └── validate.middleware.ts # Zod request body validation
 │   │   ├── models/             # Mongoose Domain Models
 │   │   │   ├── User.ts         # User auth & role accounts
 │   │   │   ├── StudentProfile.ts # Student academic identity & links
@@ -59,13 +64,22 @@ evidra/
 │   │   │   ├── AuditLog.ts     # System-wide compliance & security log
 │   │   │   └── index.ts        # Models barrel exporter
 │   │   ├── routes/             # Express API routes
+│   │   │   ├── auth.routes.ts  # Authentication & role verification endpoints
 │   │   │   └── health.routes.ts # Health (liveness) & ready (readiness) routes
+│   │   ├── scripts/            # CLI utilities
+│   │   │   └── seed.ts         # Development demo accounts seeder
 │   │   ├── utils/              # API helpers
 │   │   │   ├── apiError.ts     # Operational ApiError class
-│   │   │   └── apiResponse.ts  # Standardised JSON response envelope
+│   │   │   ├── apiResponse.ts  # Standardised JSON response envelope
+│   │   │   ├── password.ts     # Bcrypt password hashing & comparison
+│   │   │   ├── seed.ts         # Demo user seeding logic
+│   │   │   └── token.ts        # JWT token generation & verification
+│   │   ├── validators/         # Zod request validators
+│   │   │   └── auth.validator.ts # Register and login schemas
 │   │   ├── app.ts              # Express application factory & middleware
 │   │   └── index.ts            # Server entrypoint & graceful shutdown
 │   ├── test/                   # Vitest & Supertest test suite
+│   │   ├── auth.test.ts        # Authentication & RBAC integration tests
 │   │   ├── db.test.ts          # DB connection lifecycle tests
 │   │   ├── env.test.ts         # Environment validation tests
 │   │   ├── error.test.ts       # Centralised error handling tests
@@ -126,34 +140,67 @@ CLIENT_URL=http://localhost:5173
 MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/evidra?retryWrites=true&w=majority
 JWT_SECRET=your_super_secret_jwt_key_min_32_chars
 JWT_EXPIRES_IN=7d
+COOKIE_NAME=evidra_token
+
+# Development-Only Demo Seeding (Disabled in production)
+SEED_DEMO_USERS=false
+DEMO_USER_PASSWORD=EvidraDemo123!
 ```
-
-**Key Environment Variables (`client/.env`):**
-
-```env
-VITE_API_URL=http://localhost:5000
-```
-
-> **Note**: For initial health check testing, MongoDB credentials are not mandatory. If `MONGODB_URI` is omitted or unconfigured, the server logs an informative warning and operates in offline mode without crashing.
 
 ---
 
 ## Development Scripts
 
-| Command                | Description                                                               |
-| :--------------------- | :------------------------------------------------------------------------ |
-| `npm run dev`          | Runs both backend and frontend concurrently                               |
-| `npm run dev:server`   | Starts Express backend in watch mode via `tsx` on `http://localhost:5000` |
-| `npm run dev:client`   | Starts Vite dev server on `http://localhost:5173`                         |
-| `npm test`             | Runs backend test suite via Vitest                                        |
-| `npm run build`        | Compiles both backend (`tsc`) and frontend (`vite build`)                 |
-| `npm run build:server` | Compiles TypeScript backend into `server/dist`                            |
-| `npm run build:client` | Compiles Vite frontend into `client/dist`                                 |
-| `npm run start`        | Runs the compiled backend server (`node server/dist/index.js`)            |
-| `npm run lint`         | Runs ESLint across the entire monorepo                                    |
-| `npm run format`       | Formats all code with Prettier                                            |
-| `npm run format:check` | Verifies code formatting with Prettier                                    |
-| `npm run typecheck`    | Runs TypeScript type checking for client and server                       |
+| Command                           | Description                                                               |
+| :-------------------------------- | :------------------------------------------------------------------------ |
+| `npm run dev`                     | Runs both backend and frontend concurrently                               |
+| `npm run dev:server`              | Starts Express backend in watch mode via `tsx` on `http://localhost:5000` |
+| `npm run dev:client`              | Starts Vite dev server on `http://localhost:5173`                         |
+| `npm test`                        | Runs backend test suite via Vitest                                        |
+| `npm run seed --workspace=server` | Seeds development demo accounts (Student, Recruiter, Officer, Admin)      |
+| `npm run build`                   | Compiles both backend (`tsc`) and frontend (`vite build`)                 |
+| `npm run build:server`            | Compiles TypeScript backend into `server/dist`                            |
+| `npm run build:client`            | Compiles Vite frontend into `client/dist`                                 |
+| `npm run start`                   | Runs the compiled backend server (`node server/dist/index.js`)            |
+| `npm run lint`                    | Runs ESLint across the entire monorepo                                    |
+| `npm run format`                  | Formats all code with Prettier                                            |
+| `npm run format:check`            | Verifies code formatting with Prettier                                    |
+| `npm run typecheck`               | Runs TypeScript type checking for client and server                       |
+
+---
+
+## Authentication & Authorization API
+
+All authentication uses **JWTs stored in secure HTTP-only cookies** (`SameSite: Lax` in development, `SameSite: None; Secure` in production for cross-site Vercel <-> Render deployments). Tokens are never exposed to JavaScript or stored in `localStorage`.
+
+### Endpoints
+
+| Method | Endpoint                                 | Access            | Description                                                                   |
+| :----- | :--------------------------------------- | :---------------- | :---------------------------------------------------------------------------- |
+| `POST` | `/api/auth/register`                     | Public            | Registers a new student account & profile (role strictly forced to `student`) |
+| `POST` | `/api/auth/login`                        | Public            | Authenticates credentials and issues secure HTTP-only cookie                  |
+| `POST` | `/api/auth/logout`                       | Public            | Clears authentication cookie                                                  |
+| `GET`  | `/api/auth/me`                           | Authenticated     | Session restoration: returns current user and linked profile                  |
+| `GET`  | `/api/auth/role-check/student`           | Student           | Verifies student role access                                                  |
+| `GET`  | `/api/auth/role-check/placement-officer` | Placement Officer | Verifies placement officer role access                                        |
+| `GET`  | `/api/auth/role-check/recruiter`         | Recruiter         | Verifies recruiter role access                                                |
+
+### Demo Accounts for Development
+
+When running locally, you can populate demo accounts via:
+
+```bash
+npm run seed --workspace=server
+```
+
+| Role                  | Email                  | Password         |
+| :-------------------- | :--------------------- | :--------------- |
+| **Student**           | `student@evidra.dev`   | `EvidraDemo123!` |
+| **Recruiter**         | `recruiter@evidra.dev` | `EvidraDemo123!` |
+| **Placement Officer** | `officer@evidra.dev`   | `EvidraDemo123!` |
+| **Admin**             | `admin@evidra.dev`     | `EvidraDemo123!` |
+
+> **Security Note**: The seed mechanism is strictly forbidden in production mode (`NODE_ENV=production`) and is not exposed as a public HTTP endpoint.
 
 ---
 
@@ -193,36 +240,6 @@ Verifies that dependencies (MongoDB) are ready to accept traffic:
 curl http://localhost:5000/api/ready
 ```
 
-- When MongoDB is connected (`200 OK`):
-  ```json
-  {
-    "success": true,
-    "data": {
-      "ready": true,
-      "checks": {
-        "database": "connected"
-      }
-    },
-    "message": "Service is ready to receive traffic"
-  }
-  ```
-- When MongoDB is disconnected (`503 Service Unavailable`):
-  ```json
-  {
-    "success": false,
-    "error": {
-      "code": "SERVICE_NOT_READY",
-      "message": "Service is not ready to receive traffic: database is not connected",
-      "details": {
-        "ready": false,
-        "checks": {
-          "database": "disconnected"
-        }
-      }
-    }
-  }
-  ```
-
 ---
 
 ## Deployment Architecture
@@ -248,3 +265,4 @@ curl http://localhost:5000/api/ready
   - `CLIENT_URL`: Your Vercel frontend URL (e.g., `https://evidra.vercel.app`)
   - `MONGODB_URI`: Your MongoDB Atlas production connection URI
   - `JWT_SECRET`: Secure cryptographic secret (32+ characters)
+  - `COOKIE_NAME`: `evidra_token`

@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 import { config } from './config/env';
 import healthRoutes from './routes/health.routes';
+import authRoutes from './routes/auth.routes';
 import { apiRateLimiter } from './middleware/rateLimiter';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { sendSuccess } from './utils/apiResponse';
@@ -48,6 +49,7 @@ export const createApp = (): Application => {
       endpoints: {
         health: '/api/health',
         ready: '/api/ready',
+        auth: '/api/auth',
       },
     });
   });
@@ -60,10 +62,13 @@ export const createApp = (): Application => {
     return healthRoutes(req, res, next);
   });
 
-  // 8. 404 Handler for undefined routes
+  // 8. Authentication Routes
+  app.use('/api/auth', authRoutes);
+
+  // 9. 404 Handler for undefined routes
   app.use(notFoundHandler);
 
-  // 9. Centralized Error Handler
+  // 10. Centralized Error Handler
   app.use(errorHandler);
 
   return app;
