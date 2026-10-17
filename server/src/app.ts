@@ -1,4 +1,4 @@
-import express, { Application, Request, Response } from 'express';
+import express, { Application, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -39,7 +39,7 @@ export const createApp = (): Application => {
 
   app.use(
     cors({
-      origin: (origin, callback) => {
+      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
         // Allow non-browser requests (Postman, curl, internal checks)
         if (!origin) return callback(null, true);
         const cleanOrigin = origin.replace(/\/+$/, '');
@@ -105,7 +105,7 @@ export const createApp = (): Application => {
   app.use('/api/health', healthRoutes);
   app.use('/health', healthRoutes);
   // Direct readiness alias for GET /ready and GET /api/ready
-  app.use(['/api/ready', '/ready'], (req: Request, res: Response, next) => {
+  app.use(['/api/ready', '/ready'], (req: Request, res: Response, next: NextFunction) => {
     req.url = '/ready';
     return healthRoutes(req, res, next);
   });

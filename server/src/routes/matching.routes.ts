@@ -1,4 +1,4 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import {
   getJobCandidateRankings,
   exportJobRankingsCsv,
@@ -13,7 +13,7 @@ const router = Router();
 // 1. Student self-inspection of job fit and personalized interview prep
 router.get(['/jobs/:jobId/my-fit', '/jobs/:jobId/my-match'], requireAuth, requireRole('student'), getMyJobFit);
 router.get('/jobs/:jobId/interview-prep', requireAuth, requireRole('student'), getJobInterviewPrep);
-router.get('/jobs/interview-prep', requireAuth, requireRole('student'), (req, res, next) => {
+router.get('/jobs/interview-prep', requireAuth, requireRole('student'), (req: Request, res: Response, next: NextFunction) => {
   const jobId = req.query.jobId as string;
   if (jobId) {
     req.params.jobId = jobId;

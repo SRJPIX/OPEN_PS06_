@@ -22,9 +22,9 @@ export const generateResumePdf = (resume: IResume): Promise<Buffer> => {
       });
 
       const buffers: Buffer[] = [];
-      doc.on('data', (chunk) => buffers.push(chunk));
+      doc.on('data', (chunk: Buffer) => buffers.push(chunk));
       doc.on('end', () => resolve(Buffer.concat(buffers)));
-      doc.on('error', (err) => reject(err));
+      doc.on('error', (err: Error) => reject(err));
 
       const contact = resume.contactDetails;
       const primaryColor = '#0f172a'; // slate-900
