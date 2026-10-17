@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { Types } from 'mongoose';
+import mongoose, { Types } from 'mongoose';
 import { config } from '../config/env';
 import { getAuthCookieOptions, getClearCookieOptions } from '../config/cookie';
 import { User } from '../models/User';
@@ -22,6 +22,9 @@ export const registerStudent = async (
   next: NextFunction
 ): Promise<void> => {
   try {
+    if (mongoose.connection.readyState !== 1) {
+      throw ApiError.serviceUnavailable('Database service is currently unavailable. Please verify MongoDB connection.');
+    }
     const { email, password, rollNumber, department, degree, graduationYear, cgpa, phone, bio } =
       req.body as RegisterStudentInput;
 
@@ -117,6 +120,10 @@ export const registerStudent = async (
 export const login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { email, password } = req.body as LoginInput;
+
+    if (mongoose.connection.readyState !== 1) {
+      throw ApiError.serviceUnavailable('Database service is currently unavailable. Please verify MongoDB connection.');
+    }
 
     // 1. Find user and explicitly select passwordHash
     const user = await User.findOne({ email }).select('+passwordHash');

@@ -112,6 +112,32 @@ export const connectDB = async (uri?: string, options?: ConnectOptions): Promise
     if (process.env.NODE_ENV !== 'test') {
       console.error('[MongoDB] Initial connection failure:', error);
     }
+    // In development mode, if remote cluster fails (e.g. IP not whitelisted on Atlas),
+    // attempt fallback to local MongoDB so local testing is never blocked by timeout.
+    if (
+      process.env.NODE_ENV !== 'production' &&
+      !mongoUri.includes('localhost') &&
+      !mongoUri.includes('127.0.0.1')
+    ) {
+      try {
+        console.warn(
+          '[MongoDB] Remote cluster unreachable (likely IP whitelist). Attempting fallback to local MongoDB at mongodb://localhost:27017/evidra...'
+        );
+        const fallbackConn = await mongoose.connect('mongodb://localhost:27017/evidra', {
+          serverSelectionTimeoutMS: 2000,
+          autoIndex: true,
+          ...options,
+        });
+        console.log(
+          `[MongoDB] Connected to local fallback host: ${fallbackConn.connection.host} (DB: ${fallbackConn.connection.name})`
+        );
+        return true;
+      } catch (fallbackErr) {
+        if (process.env.NODE_ENV !== 'test') {
+          console.error('[MongoDB] Local fallback connection also failed:', fallbackErr);
+        }
+      }
+    }
     return false;
   }
 };

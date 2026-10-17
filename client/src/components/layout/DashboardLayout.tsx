@@ -25,6 +25,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { ErrorBoundary } from '../ui/ErrorBoundary';
 import { cn } from '../../lib/utils';
 
 interface NavItem {
@@ -390,7 +391,9 @@ export const DashboardLayout: React.FC = () => {
 
         {/* Routed Dashboard Page Outlet */}
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
-          <Outlet />
+          <ErrorBoundary>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
     </div>
