@@ -73,10 +73,14 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
       );
     } else {
       const text = await response.text();
+      const message =
+        response.status >= 500 && (!text || text.includes('ECONNREFUSED'))
+          ? 'Backend service is offline or unreachable. Please start the backend on port 5000 (e.g. npm run dev).'
+          : text || `HTTP Error ${response.status}`;
       throw new ApiClientError(
         response.status,
         'HTTP_ERROR',
-        text || `HTTP Error ${response.status}`
+        message
       );
     }
   }
