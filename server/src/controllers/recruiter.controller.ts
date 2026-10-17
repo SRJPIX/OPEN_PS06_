@@ -300,10 +300,9 @@ export const getCandidateEvidenceForRecruiter = async (
       throw ApiError.forbidden('Forbidden: No company assigned to this recruiter.');
     }
 
-    // Verify student applied to at least one job from this company
-    const companyJobs = await Job.find({ company: company._id }).select('_id');
+    // Check application status: recruiters can only inspect evidence of candidates who applied to their company
+    const companyJobs = await Job.find({ company: company._id }, '_id');
     const companyJobIds = companyJobs.map((j) => j._id);
-
     const application = await Application.findOne({
       student: new Types.ObjectId(studentId),
       job: { $in: companyJobIds },
@@ -311,17 +310,23 @@ export const getCandidateEvidenceForRecruiter = async (
 
     if (!application) {
       throw ApiError.forbidden(
-        'Access denied: Candidate has not applied to any active requisition at your company.'
+        'Forbidden: Recruiter can only inspect evidence of candidates who have applied to their company.'
       );
+    }
+
+    const student = await StudentProfile.findById(studentId);
+    if (!student) {
+      throw ApiError.notFound('Student profile not found.');
     }
 
     const evidenceList = await Evidence.find({ student: new Types.ObjectId(studentId) })
       .populate('skills', 'name slug category')
+      .populate('reviewedBy', 'email role')
       .sort({ score: -1, createdAt: -1 });
 
     sendSuccess(
       res,
-      { evidence: evidenceList },
+      { evidence: evidenceList, student, hasApplied: true },
       'Candidate verified deliverables retrieved successfully'
     );
   } catch (error) {

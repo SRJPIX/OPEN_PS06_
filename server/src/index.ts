@@ -1,3 +1,5 @@
+import dns from 'node:dns';
+dns.setServers(['8.8.8.8', '8.8.4.4']);
 import { config } from './config/env';
 import { createApp } from './app';
 import { connectDB, disconnectDB } from './config/db';
@@ -8,6 +10,19 @@ const startServer = async () => {
 
   // 1. Establish MongoDB connection
   const dbConnected = await connectDB(config.MONGODB_URI);
+
+  if (!dbConnected) {
+    const maskedUri = config.MONGODB_URI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@');
+    if (config.NODE_ENV === 'production') {
+      throw new Error(
+        `[Evidra API] Fatal: Database connection to '${maskedUri}' failed. The application cannot start in production without an active MongoDB connection.`
+      );
+    } else {
+      console.error(
+        `[Evidra API] WARNING: Database connection to '${maskedUri}' could not be established. Ensure local MongoDB service is running or check MONGODB_URI in .env. Database-dependent routes will return 503.`
+      );
+    }
+  }
 
   // 2. Optional development-only demo user seed
   if (dbConnected && config.SEED_DEMO_USERS && config.NODE_ENV !== 'production') {
@@ -24,6 +39,9 @@ const startServer = async () => {
   // 4. Start listening
   const server = app.listen(config.PORT, () => {
     console.log(`[Evidra API] HTTP Server listening on port ${config.PORT}`);
+    console.log(
+      `[Evidra API] Database status: ${dbConnected ? 'CONNECTED' : 'DISCONNECTED (Degraded)'}`
+    );
     console.log(`[Evidra API] Liveness check: http://localhost:${config.PORT}/api/health`);
     console.log(`[Evidra API] Readiness check: http://localhost:${config.PORT}/api/ready`);
     console.log(`[Evidra API] Auth endpoints: http://localhost:${config.PORT}/api/auth`);

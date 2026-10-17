@@ -87,10 +87,20 @@ export const createJob = async (req: Request, res: Response, next: NextFunction)
     }
 
     const data = validation.data;
-    const company = await resolveCompany(data.company, user._id.toString(), user.role);
+    let company: ICompany | null = null;
+    if (data.company) {
+      company = await resolveCompany(data.company, user._id.toString(), user.role);
+    } else if (user.role === 'recruiter') {
+      company = await Company.findOne({
+        $or: [
+          { createdBy: user._id },
+          { authorizedRecruiters: user._id },
+        ],
+      });
+    }
 
     if (!company) {
-      sendError(res, 'NOT_FOUND', `Company '${data.company}' not found`, 404);
+      sendError(res, 'NOT_FOUND', data.company ? `Company '${data.company}' not found` : 'Company not specified or not found for user', 404);
       return;
     }
 

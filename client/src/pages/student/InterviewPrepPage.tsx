@@ -107,7 +107,7 @@ export const InterviewPrepPage: React.FC = () => {
     queryFn: () => api.get<JobsResponse>('/jobs?limit=50'),
   });
 
-  const availableJobs = jobsData?.jobs || [];
+  const availableJobs: JobItem[] = Array.isArray(jobsData) ? jobsData : jobsData?.jobs || [];
 
   // If no job is selected yet and jobs are loaded, auto-select the first job
   useEffect(() => {
@@ -132,7 +132,12 @@ export const InterviewPrepPage: React.FC = () => {
     refetch: refetchPrep,
   } = useQuery<InterviewPrepData>({
     queryKey: ['interview-prep-kit', selectedJobId],
-    queryFn: () => api.get<InterviewPrepData>(`/matching/jobs/${selectedJobId}/interview-prep`),
+    queryFn: () => {
+      if (!selectedJobId) {
+        throw new Error('Please select a target job opening first.');
+      }
+      return api.get<InterviewPrepData>(`/matching/jobs/${selectedJobId}/interview-prep`);
+    },
     enabled: !!selectedJobId && activeMode === 'blueprint',
   });
 
@@ -270,7 +275,14 @@ export const InterviewPrepPage: React.FC = () => {
             <Button
               variant="outline"
               size="sm"
-              onClick={() => refetchPrep()}
+              disabled={!selectedJobId || isPrepLoading}
+              onClick={() => {
+                if (!selectedJobId) {
+                  toastError('Job Selection Required', 'Please select a target requisition to generate interview blueprint.');
+                  return;
+                }
+                refetchPrep();
+              }}
               icon={<RotateCcw className="w-3.5 h-3.5" />}
             >
               Regenerate Blueprint

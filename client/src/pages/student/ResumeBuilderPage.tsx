@@ -687,7 +687,8 @@ export const ResumeBuilderPage: React.FC = () => {
               value={targetJobId}
               onChange={(e) => {
                 setTargetJobId(e.target.value);
-                const found = jobsData?.jobs?.find((j) => j._id === e.target.value);
+                const jobsList = Array.isArray(jobsData) ? jobsData : jobsData?.jobs || [];
+                const found = jobsList.find((j) => j._id === e.target.value);
                 if (found) {
                   setTargetRole(found.title);
                   setResumeTitle(`${found.title} Tailored Resume`);
@@ -696,7 +697,7 @@ export const ResumeBuilderPage: React.FC = () => {
               className="w-full rounded-xl bg-[#070d18] border border-slate-800 p-2.5 text-sm text-slate-100 outline-none focus:border-blue-500"
             >
               <option value="">-- No specific job (General role alignment) --</option>
-              {jobsData?.jobs?.map((j) => (
+              {(Array.isArray(jobsData) ? jobsData : jobsData?.jobs || []).map((j) => (
                 <option key={j._id} value={j._id}>
                   {j.title} &bull; {typeof j.company === 'object' ? j.company?.name : 'Company'}
                 </option>

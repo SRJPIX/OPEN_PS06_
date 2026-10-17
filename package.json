@@ -19,7 +19,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "npm run typecheck --workspace=client && npm run typecheck --workspace=server",
-    "test": "npm run test --workspace=server"
+    "test": "npm run test --workspace=server",
+    "seed": "npm run seed --workspace=server",
+    "seed:jobs": "npm run seed:jobs --workspace=server"
   },
   "devDependencies": {
     "@eslint/js": "^9.20.0",

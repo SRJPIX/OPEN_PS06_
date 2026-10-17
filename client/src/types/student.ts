@@ -52,6 +52,9 @@ export interface EvidenceItem {
   evaluatorNotes?: string;
   evaluatedBy?: string;
   evaluatedAt?: string;
+  reviewedBy?: { _id: string; email: string; role: string } | string;
+  reviewedAt?: string;
+  reviewNotes?: string;
   metadata?: Record<string, unknown>;
   auditHistory?: Array<{
     fromStatus?: string;

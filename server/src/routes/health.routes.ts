@@ -1,15 +1,16 @@
 import { Router, Request, Response } from 'express';
-import { getDatabaseStatus, isDatabaseConnected } from '../config/db';
+import { isDatabaseConnected, getDatabaseInfo } from '../config/db';
 import { sendSuccess, sendError } from '../utils/apiResponse';
 
 const router = Router();
 
 /**
  * @route   GET /api/health
- * @desc    Liveness check - verifies that the Express API process is running
+ * @desc    Liveness check - verifies that the Express API process is running and reports safe database status
  * @access  Public
  */
 router.get('/', (_req: Request, res: Response) => {
+  const dbInfo = getDatabaseInfo();
   const data = {
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -17,7 +18,12 @@ router.get('/', (_req: Request, res: Response) => {
     service: 'evidra-api',
     version: '0.1.0',
     environment: process.env.NODE_ENV || 'development',
-    database: getDatabaseStatus(),
+    database: {
+      status: dbInfo.status,
+      connected: dbInfo.connected,
+      ...(dbInfo.databaseName ? { databaseName: dbInfo.databaseName } : {}),
+      ...(dbInfo.host ? { host: dbInfo.host } : {}),
+    },
   };
 
   sendSuccess(res, data, 'Service is healthy');
@@ -29,14 +35,15 @@ router.get('/', (_req: Request, res: Response) => {
  * @access  Public
  */
 router.get('/ready', (_req: Request, res: Response) => {
-  const dbConnected = isDatabaseConnected();
-  const dbStatus = getDatabaseStatus();
+  const dbInfo = getDatabaseInfo();
 
   const checks = {
-    database: dbStatus,
+    database: dbInfo.status,
+    connected: dbInfo.connected,
+    ...(dbInfo.databaseName ? { databaseName: dbInfo.databaseName } : {}),
   };
 
-  if (!dbConnected) {
+  if (!dbInfo.connected) {
     sendError(
       res,
       'SERVICE_NOT_READY',

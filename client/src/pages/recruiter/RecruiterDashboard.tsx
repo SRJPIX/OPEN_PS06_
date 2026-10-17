@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Briefcase,
   Users,
@@ -91,11 +92,15 @@ interface EvidenceItem {
   _id: string;
   title: string;
   type: string;
-  verificationStatus: string;
+  status: 'submitted' | 'under_review' | 'verified' | 'rejected' | 'needs_additional_evidence';
+  isVerified?: boolean;
   score?: number;
+  confidenceScore?: number;
   url?: string;
   description?: string;
-  verifiedAt?: string;
+  reviewedAt?: string;
+  reviewNotes?: string;
+  reviewedBy?: { _id: string; email: string; role: string };
   skills?: Array<{ _id: string; name: string }>;
 }
 
@@ -103,9 +108,25 @@ export const RecruiterDashboard: React.FC = () => {
   const { user } = useAuth();
   const { success, error: toastError } = useToast();
   const queryClient = useQueryClient();
+  const location = useLocation();
+  const navigate = useNavigate();
 
-  // Active navigation tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'jobs' | 'candidates' | 'company'>('overview');
+  // Active navigation tab synchronized with URL path
+  const getTabFromPath = (pathname: string): 'overview' | 'jobs' | 'candidates' | 'company' => {
+    if (pathname.includes('/jobs')) return 'jobs';
+    if (pathname.includes('/candidates')) return 'candidates';
+    if (pathname.includes('/company')) return 'company';
+    return 'overview';
+  };
+
+  const activeTab = getTabFromPath(location.pathname);
+
+  const handleTabChange = (tab: 'overview' | 'jobs' | 'candidates' | 'company') => {
+    if (tab === 'jobs') navigate('/recruiter/jobs');
+    else if (tab === 'candidates') navigate('/recruiter/candidates');
+    else if (tab === 'company') navigate('/recruiter/company');
+    else navigate('/recruiter/dashboard');
+  };
 
   // Selected job for candidate shortlist
   const [selectedJobId, setSelectedJobId] = useState<string>('');
@@ -120,11 +141,17 @@ export const RecruiterDashboard: React.FC = () => {
   const [interviewRound, setInterviewRound] = useState<string>('Technical Round 1');
   const [isCreateJobOpen, setIsCreateJobOpen] = useState<boolean>(false);
 
+  // Evidence Review state
+  const [reviewingEvidenceId, setReviewingEvidenceId] = useState<string | null>(null);
+  const [reviewAction, setReviewAction] = useState<'approve' | 'reject'>('approve');
+  const [reviewScore, setReviewScore] = useState<number>(85);
+  const [reviewNotes, setReviewNotes] = useState<string>('');
+
   // New Job Form State
   const [jobTitle, setJobTitle] = useState('');
   const [jobDescription, setJobDescription] = useState('');
   const [jobLocation, setJobLocation] = useState('Remote / Hybrid');
-  const [jobType, setJobType] = useState('full-time');
+  const [jobType, setJobType] = useState('full_time');
   const [jobMinCgpa, setJobMinCgpa] = useState('7.0');
 
   // 1. Fetch Company Profile
@@ -254,6 +281,46 @@ export const RecruiterDashboard: React.FC = () => {
     },
   });
 
+  // 8. Review Candidate Evidence Mutation
+  const reviewEvidenceMutation = useMutation({
+    mutationFn: async ({
+      id,
+      action,
+      score,
+      notes,
+    }: {
+      id: string;
+      action: 'approve' | 'reject';
+      score: number;
+      notes: string;
+    }) => {
+      return api.post(`/evidence/${id}/review`, {
+        action,
+        score,
+        notes,
+        confidenceScore: score,
+      });
+    },
+    onSuccess: (_, variables) => {
+      success(
+        variables.action === 'approve'
+          ? 'Evidence verified and candidate skill approved in MongoDB vault.'
+          : 'Evidence rejected. Status updated.'
+      );
+      setReviewingEvidenceId(null);
+      setReviewNotes('');
+      queryClient.invalidateQueries({ queryKey: ['recruiter-candidate-evidence'] });
+      queryClient.invalidateQueries({ queryKey: ['recruiter-candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['recruiter-jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['officer-student-detail'] });
+      queryClient.invalidateQueries({ queryKey: ['student-profile-me'] });
+      queryClient.invalidateQueries({ queryKey: ['student-evidence-list'] });
+    },
+    onError: (err: any) => {
+      toastError(err.message || 'Failed to review candidate evidence');
+    },
+  });
+
   // Profile Form State
   const company = companyData?.company;
   const [profileWebsite, setProfileWebsite] = useState('');
@@ -354,7 +421,7 @@ export const RecruiterDashboard: React.FC = () => {
       {/* Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
         <button
-          onClick={() => setActiveTab('overview')}
+          onClick={() => handleTabChange('overview')}
           className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${
             activeTab === 'overview'
               ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
@@ -365,7 +432,7 @@ export const RecruiterDashboard: React.FC = () => {
           Overview &amp; Metrics
         </button>
         <button
-          onClick={() => setActiveTab('jobs')}
+          onClick={() => handleTabChange('jobs')}
           className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${
             activeTab === 'jobs'
               ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
@@ -376,7 +443,7 @@ export const RecruiterDashboard: React.FC = () => {
           Company Requisitions ({totalJobs})
         </button>
         <button
-          onClick={() => setActiveTab('candidates')}
+          onClick={() => handleTabChange('candidates')}
           className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${
             activeTab === 'candidates'
               ? 'bg-teal-600/20 text-teal-400 border border-teal-500/30'
@@ -387,7 +454,7 @@ export const RecruiterDashboard: React.FC = () => {
           Candidate Shortlist ({totalApplications})
         </button>
         <button
-          onClick={() => setActiveTab('company')}
+          onClick={() => handleTabChange('company')}
           className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all flex items-center gap-2 ${
             activeTab === 'company'
               ? 'bg-purple-600/20 text-purple-400 border border-purple-500/30'
@@ -476,7 +543,7 @@ export const RecruiterDashboard: React.FC = () => {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setActiveTab('jobs')}
+                onClick={() => handleTabChange('jobs')}
                 icon={<ArrowRight className="w-3.5 h-3.5" />}
               >
                 Manage All
@@ -529,7 +596,7 @@ export const RecruiterDashboard: React.FC = () => {
                           size="sm"
                           onClick={() => {
                             setSelectedJobId(job._id);
-                            setActiveTab('candidates');
+                            handleTabChange('candidates');
                           }}
                         >
                           View Shortlist
@@ -623,7 +690,7 @@ export const RecruiterDashboard: React.FC = () => {
                           size="sm"
                           onClick={() => {
                             setSelectedJobId(job._id);
-                            setActiveTab('candidates');
+                            handleTabChange('candidates');
                           }}
                           icon={<Users className="w-3.5 h-3.5" />}
                         >
@@ -737,7 +804,15 @@ export const RecruiterDashboard: React.FC = () => {
                                 #{idx + 1}
                               </span>
                               <div>
-                                <div className="font-bold text-white">{cand.student.fullName}</div>
+                                <button
+                                  type="button"
+                                  onClick={() => navigate(`/recruiter/candidates/${cand.student._id}`)}
+                                  className="font-bold text-white hover:text-blue-400 text-left transition-colors flex items-center gap-1.5 group"
+                                  title="Open Candidate Dossier"
+                                >
+                                  <span>{cand.student.fullName}</span>
+                                  <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400" />
+                                </button>
                                 <div className="text-[11px] text-slate-400">
                                   {cand.student.email || 'Verified Candidate'}
                                 </div>
@@ -836,6 +911,16 @@ export const RecruiterDashboard: React.FC = () => {
                           {/* Actions */}
                           <td className="py-3.5 px-4 text-right">
                             <div className="flex items-center justify-end gap-1.5">
+                              {/* Candidate Dossier */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                title="Open Full Candidate Profile"
+                                onClick={() => navigate(`/recruiter/candidates/${cand.student._id}`)}
+                              >
+                                Profile
+                              </Button>
+
                               {/* Inspect Evidence */}
                               <Button
                                 variant="outline"
@@ -993,15 +1078,18 @@ export const RecruiterDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 1: EVIDENCE DELIVERABLES INSPECTOR */}
+      {/* MODAL 1: EVIDENCE DELIVERABLES INSPECTOR & SKILL VERIFICATION */}
       <Dialog
         isOpen={Boolean(evidenceCandidate)}
-        onClose={() => setEvidenceCandidate(null)}
+        onClose={() => {
+          setEvidenceCandidate(null);
+          setReviewingEvidenceId(null);
+        }}
         title={`Verified Evidence: ${evidenceCandidate?.name}`}
       >
         <div className="space-y-4">
           <p className="text-xs text-slate-400">
-            All code deliverables, repositories, and technical credentials below have been signed and validated by campus placement authorities.
+            Inspect candidate code repositories, projects, and credentials. Authorized recruiters can evaluate and verify or reject submitted skills.
           </p>
 
           {isEvidenceLoading ? (
@@ -1012,63 +1100,210 @@ export const RecruiterDashboard: React.FC = () => {
           ) : !evidenceData?.evidence || evidenceData.evidence.length === 0 ? (
             <EmptyState
               title="No Evidence Records"
-              description="Candidate has not submitted verified evidence items yet."
+              description="Candidate has not submitted evidence artifacts for this profile yet."
             />
           ) : (
-            <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-              {evidenceData.evidence.map((item) => (
-                <div
-                  key={item._id}
-                  className="p-3.5 rounded-xl bg-[#070d18] border border-slate-800 space-y-2"
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold text-xs text-white">{item.title}</span>
-                      <Badge variant="success" size="sm">
-                        {item.verificationStatus}
-                      </Badge>
-                    </div>
-                    {item.score && (
-                      <span className="text-xs font-bold text-teal-400">
-                        Score: {item.score}/100
-                      </span>
-                    )}
-                  </div>
-                  {item.description && (
-                    <p className="text-xs text-slate-400">{item.description}</p>
-                  )}
-                  {item.url && (
-                    <div className="pt-1">
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-xs text-blue-400 hover:text-blue-300 inline-flex items-center gap-1 underline"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        View Live Project / Repository
-                      </a>
-                    </div>
-                  )}
-                  {item.skills && item.skills.length > 0 && (
-                    <div className="flex items-center gap-1.5 flex-wrap pt-1">
-                      {item.skills.map((s) => (
-                        <span
-                          key={s._id}
-                          className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300"
+            <div className="space-y-4 max-h-[30rem] overflow-y-auto pr-1">
+              {evidenceData.evidence.map((item) => {
+                const isUnderReview = reviewingEvidenceId === item._id;
+                return (
+                  <div
+                    key={item._id}
+                    className="p-4 rounded-xl bg-[#070d18] border border-slate-800 space-y-3"
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-semibold text-xs text-white">{item.title}</span>
+                        <Badge
+                          variant={
+                            item.status === 'verified'
+                              ? 'success'
+                              : item.status === 'rejected'
+                              ? 'danger'
+                              : 'warning'
+                          }
+                          size="sm"
                         >
-                          {s.name}
+                          {(item.status || 'submitted').replace('_', ' ').toUpperCase()}
+                        </Badge>
+                        <span className="text-[11px] text-slate-400 capitalize">
+                          &bull; {(item.type || 'artifact').replace('_', ' ')}
                         </span>
-                      ))}
+                      </div>
+                      {item.score !== undefined && (
+                        <span className="text-xs font-bold text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded border border-teal-500/20">
+                          Score: {item.score}/100
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {item.description && (
+                      <p className="text-xs text-slate-400 leading-relaxed">{item.description}</p>
+                    )}
+
+                    {item.url && (
+                      <div>
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-blue-400 hover:text-blue-300 inline-flex items-center gap-1.5 underline"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          View Live Deliverable / Repository
+                        </a>
+                      </div>
+                    )}
+
+                    {item.skills && item.skills.length > 0 && (
+                      <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                        <span className="text-[10px] text-slate-400 font-medium">Mapped Skills:</span>
+                        {item.skills.map((s) => (
+                          <span
+                            key={s._id}
+                            className="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-500/10 text-blue-400 border border-blue-500/20"
+                          >
+                            {s.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Review history */}
+                    {item.reviewedBy && (
+                      <div className="text-[10px] text-slate-400 pt-1.5 border-t border-slate-800/80">
+                        Evaluated by <span className="text-slate-200 font-medium">{item.reviewedBy.email}</span> ({item.reviewedBy.role})
+                        {item.reviewedAt && ` on ${new Date(item.reviewedAt).toLocaleDateString()}`}
+                        {item.reviewNotes && (
+                          <div className="text-slate-300 italic mt-1 bg-slate-900/60 p-2 rounded border border-slate-800">
+                            "{item.reviewNotes}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Interactive Recruiter Verification controls */}
+                    <div className="pt-2 border-t border-slate-800/80">
+                      {!isUnderReview ? (
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] text-slate-400">
+                            {item.status === 'verified'
+                              ? 'Skill verified in MongoDB vault.'
+                              : item.status === 'rejected'
+                              ? 'Evidence rejected by reviewer.'
+                              : 'Pending evaluation.'}
+                          </span>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setReviewingEvidenceId(item._id);
+                              setReviewAction(item.status === 'rejected' ? 'approve' : 'approve');
+                              setReviewScore(item.score || 85);
+                              setReviewNotes(item.reviewNotes || '');
+                            }}
+                          >
+                            {item.status === 'verified' ? 'Re-Evaluate' : 'Review & Verify'}
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-700/80 space-y-3 mt-1">
+                          <div className="text-xs font-semibold text-white">
+                            Verify Evidence &amp; Update Skill Status
+                          </div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setReviewAction('approve')}
+                              className={`p-2 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all ${
+                                reviewAction === 'approve'
+                                  ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50 shadow-sm'
+                                  : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white'
+                              }`}
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Approve &amp; Verify
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setReviewAction('reject')}
+                              className={`p-2 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all ${
+                                reviewAction === 'reject'
+                                  ? 'bg-rose-600/20 text-rose-400 border-rose-500/50 shadow-sm'
+                                  : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white'
+                              }`}
+                            >
+                              Reject Evidence
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <div>
+                              <label className="text-[10px] font-medium text-slate-300 block mb-1">
+                                Proficiency Score (0-100)
+                              </label>
+                              <Input
+                                type="number"
+                                min={0}
+                                max={100}
+                                value={reviewScore}
+                                onChange={(e) => setReviewScore(parseInt(e.target.value, 10) || 0)}
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <label className="text-[10px] font-medium text-slate-300 block mb-1">
+                                Evaluation Notes
+                              </label>
+                              <Input
+                                placeholder="e.g. Robust architecture, clean commits, comprehensive test suite."
+                                value={reviewNotes}
+                                onChange={(e) => setReviewNotes(e.target.value)}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-end gap-2 pt-1">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setReviewingEvidenceId(null)}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              isLoading={reviewEvidenceMutation.isPending}
+                              onClick={() =>
+                                reviewEvidenceMutation.mutate({
+                                  id: item._id,
+                                  action: reviewAction,
+                                  score: reviewScore,
+                                  notes: reviewNotes,
+                                })
+                              }
+                            >
+                              Save Evaluation
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
-          <div className="flex justify-end pt-2">
-            <Button variant="outline" size="sm" onClick={() => setEvidenceCandidate(null)}>
+          <div className="flex justify-end pt-2 border-t border-slate-800">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setEvidenceCandidate(null);
+                setReviewingEvidenceId(null);
+              }}
+            >
               Close
             </Button>
           </div>
@@ -1166,15 +1401,18 @@ export const RecruiterDashboard: React.FC = () => {
         <form
           onSubmit={(e) => {
             e.preventDefault();
+            if (!jobTitle.trim() || !jobDescription.trim()) {
+              toastError('Job title and description are required.');
+              return;
+            }
             createJobMutation.mutate({
-              title: jobTitle,
-              description: jobDescription,
-              location: jobLocation,
-              type: jobType,
-              eligibilityCriteria: {
-                minCgpa: parseFloat(jobMinCgpa) || 7.0,
-                maxBacklogs: 0,
-              },
+              company: company?._id || company?.name,
+              title: jobTitle.trim(),
+              description: jobDescription.trim(),
+              location: jobLocation.trim() || 'Remote / Hybrid',
+              jobType: jobType,
+              status: 'open',
+              minCgpa: parseFloat(jobMinCgpa) || 7.0,
               sourceType: 'partner_posting',
             });
           }}
@@ -1211,7 +1449,7 @@ export const RecruiterDashboard: React.FC = () => {
                 onChange={(e) => setJobType(e.target.value)}
                 className="w-full bg-[#070d18] border border-slate-700 rounded-lg p-2.5 text-xs text-white"
               >
-                <option value="full-time">Full-time</option>
+                <option value="full_time">Full-time</option>
                 <option value="internship">Internship</option>
                 <option value="contract">Contract</option>
               </select>

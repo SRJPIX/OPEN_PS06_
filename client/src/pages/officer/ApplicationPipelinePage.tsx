@@ -97,7 +97,7 @@ export const ApplicationPipelinePage: React.FC = () => {
       toStatus: string;
       notes: string;
     }) => {
-      return api.patch(`/applications/${id}/status`, { toStatus, notes });
+      return api.patch(`/applications/${id}/status`, { status: toStatus, toStatus, notes });
     },
     onSuccess: (_, variables) => {
       success('Status Transitioned', `Application advanced to "${variables.toStatus}".`);

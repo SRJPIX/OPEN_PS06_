@@ -36,7 +36,11 @@ export type EnvConfig = z.infer<typeof envSchema>;
  * Throws a formatted Error with issues if validation fails.
  */
 export const validateEnv = (envToValidate: NodeJS.ProcessEnv = process.env): EnvConfig => {
-  const result = envSchema.safeParse(envToValidate);
+  const mergedEnv: NodeJS.ProcessEnv = {
+    ...envToValidate,
+    MONGODB_URI: envToValidate.MONGODB_URI || envToValidate.MONGO_URI,
+  };
+  const result = envSchema.safeParse(mergedEnv);
 
   if (!result.success) {
     const errorMessages = result.error.issues

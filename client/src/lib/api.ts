@@ -93,6 +93,7 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
         arr.totalPages = json.meta.totalPages;
         arr.totalUnverified = json.meta.totalUnverified;
         arr.totalVerified = json.meta.totalVerified;
+        arr.jobs = arr;
       }
     }
     return json.data;

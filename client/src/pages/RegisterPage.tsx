@@ -241,6 +241,19 @@ export const RegisterPage: React.FC = () => {
                 </Button>
               </div>
             </form>
+
+            {/* Privileged Role Provisioning Information */}
+            <div className="mt-6 pt-5 border-t border-slate-800/80 text-center">
+              <p className="text-xs text-slate-500">
+                Are you a <strong className="text-slate-400">Placement Officer</strong> or <strong className="text-slate-400">Corporate Recruiter</strong>?
+              </p>
+              <p className="text-[11px] text-slate-500 mt-1">
+                Privileged accounts are provisioned securely by your institutional administrator.{' '}
+                <Link to="/login" className="text-blue-400 hover:text-blue-300 font-medium">
+                  Sign in with provisioned credentials &rarr;
+                </Link>
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>

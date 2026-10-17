@@ -49,16 +49,21 @@ export const LoginPage: React.FC = () => {
     setIsLoading(true);
     setFormError(null);
     try {
-      await login(data);
-      success('Authentication Successful', 'Welcome back to Evidra.');
+      const loggedInUser = await login(data);
+      success('Authentication Successful', `Welcome back to Evidra (${loggedInUser.role.replace('_', ' ')}).`);
 
       // Redirect to prior location if exists, otherwise to role dashboard
       const from = (location.state as { from?: { pathname?: string } })?.from?.pathname;
       if (from && from !== '/login') {
         navigate(from, { replace: true });
       } else {
-        // We will navigate to root or let the auth state take them to dashboard
-        navigate('/', { replace: true });
+        const roleDashboard =
+          loggedInUser.role === 'placement_officer' || loggedInUser.role === 'admin'
+            ? '/officer/dashboard'
+            : loggedInUser.role === 'recruiter'
+            ? '/recruiter/dashboard'
+            : '/student/dashboard';
+        navigate(roleDashboard, { replace: true });
       }
     } catch (err) {
       if (err instanceof ApiClientError) {
@@ -78,7 +83,7 @@ export const LoginPage: React.FC = () => {
 
   const setDemoCredentials = (email: string) => {
     setValue('email', email, { shouldValidate: true });
-    setValue('password', 'DemoPass@123', { shouldValidate: true });
+    setValue('password', 'EvidraDemo123!', { shouldValidate: true });
     setFormError(null);
   };
 
@@ -166,7 +171,7 @@ export const LoginPage: React.FC = () => {
                 </span>
               </div>
               <p className="text-[11px] text-slate-500 mb-3">
-                Pre-configured test roles with full seed dataset. Click to autofill:
+                Pre-configured test roles with full seed dataset (Password: <code className="text-teal-400">EvidraDemo123!</code>). Click to autofill:
               </p>
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <button
@@ -176,7 +181,7 @@ export const LoginPage: React.FC = () => {
                 >
                   <div>
                     <div className="font-medium text-slate-200">Student</div>
-                    <div className="text-[10px] text-slate-500">CS2024001</div>
+                    <div className="text-[10px] text-slate-500">DEMO26CS000</div>
                   </div>
                   <Check className="w-3.5 h-3.5 text-slate-600" />
                 </button>

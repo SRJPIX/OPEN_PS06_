@@ -9,7 +9,7 @@ import {
 import {
   requireAuth,
   requireStudent,
-  requirePlacementOfficer,
+  requireRole,
 } from '../middleware/auth.middleware';
 import { validateBody } from '../middleware/validate.middleware';
 import { submitEvidenceSchema, reviewEvidenceSchema } from '../validators/student.validator';
@@ -21,19 +21,23 @@ router.use(requireAuth);
 
 /**
  * @route   GET /api/evidence/reviews/pending
- * @desc    Placement officer: list all evidence pending review
- * @access  Private (Placement Officer / Admin)
+ * @desc    Placement officer & recruiter: list all evidence pending review
+ * @access  Private (Placement Officer / Recruiter / Admin)
  */
-router.get('/reviews/pending', requirePlacementOfficer, listPendingEvaluations);
+router.get(
+  '/reviews/pending',
+  requireRole('placement_officer', 'recruiter', 'admin'),
+  listPendingEvaluations
+);
 
 /**
  * @route   POST /api/evidence/:id/review
- * @desc    Placement officer: approve, reject, or request changes on evidence
- * @access  Private (Placement Officer / Admin)
+ * @desc    Placement officer & recruiter: approve, reject, or request changes on evidence
+ * @access  Private (Placement Officer / Recruiter / Admin)
  */
 router.post(
   '/:id/review',
-  requirePlacementOfficer,
+  requireRole('placement_officer', 'recruiter', 'admin'),
   validateBody(reviewEvidenceSchema),
   reviewEvidence
 );
@@ -47,10 +51,11 @@ router.post('/', requireStudent, validateBody(submitEvidenceSchema), submitEvide
 
 /**
  * @route   GET /api/evidence
+ * @route   GET /api/evidence/me
  * @desc    Student: list own submitted evidence
  * @access  Private (Student)
  */
-router.get('/', getMyEvidence);
+router.get(['/', '/me'], getMyEvidence);
 
 /**
  * @route   GET /api/evidence/:id

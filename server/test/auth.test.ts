@@ -4,6 +4,7 @@ import { createApp } from '../src/app';
 import { connectDB, disconnectDB } from '../src/config/db';
 import { User } from '../src/models/User';
 import { StudentProfile } from '../src/models/StudentProfile';
+import { Company } from '../src/models/Company';
 import { hashPassword } from '../src/utils/password';
 import { signAuthToken } from '../src/utils/token';
 import { config } from '../src/config/env';
@@ -14,11 +15,12 @@ describe('Authentication & Role-Based Authorization Flow', () => {
 
   const cleanup = async () => {
     if (!dbAvailable) return;
-    const users = await User.find({ email: { $regex: /@test-auth\.com$/ } });
+    const users = await User.find({ email: { $regex: /@(test-auth\.com|test-provision\.com)$/ } });
     const userIds = users.map((u) => u._id);
     await StudentProfile.deleteMany({ user: { $in: userIds } });
     await StudentProfile.deleteMany({ rollNumber: { $regex: /^CS2026/ } });
-    await User.deleteMany({ email: { $regex: /@test-auth\.com$/ } });
+    await Company.deleteMany({ name: { $in: ['Acme Partner Labs', 'Partner Tech Inc'] } });
+    await User.deleteMany({ email: { $regex: /@(test-auth\.com|test-provision\.com)$/ } });
   };
 
   beforeAll(async () => {
@@ -257,6 +259,7 @@ describe('Authentication & Role-Based Authorization Flow', () => {
 
   describe('5. Role-Based Access Control Middleware', () => {
     let studentCookie: string[];
+    let adminCookie: string[];
     let officerCookie: string[];
     let recruiterCookie: string[];
 
@@ -264,6 +267,19 @@ describe('Authentication & Role-Based Authorization Flow', () => {
       if (!dbAvailable) return;
 
       const passwordHash = await hashPassword('Password123!');
+
+      // Create admin user
+      const admin = await User.create({
+        email: 'admin@test-auth.com',
+        passwordHash,
+        role: 'admin',
+        status: 'active',
+      });
+      const adminToken = signAuthToken({
+        userId: admin._id.toString(),
+        role: 'admin',
+      });
+      adminCookie = [`${config.COOKIE_NAME}=${adminToken}; Path=/`];
 
       // Create placement officer
       const officer = await User.create({
@@ -348,6 +364,157 @@ describe('Authentication & Role-Based Authorization Flow', () => {
         .get('/api/auth/role-check/placement-officer')
         .set('Cookie', recruiterCookie);
       expect(deniedRes.status).toBe(403);
+    });
+
+    describe('6. Secure Privileged Account Provisioning (Officers & Recruiters)', () => {
+      it('should reject unauthenticated request to POST /api/auth/users with 401', async () => {
+        const res = await request(app)
+          .post('/api/auth/users')
+          .send({
+            email: 'unauth@test-provision.com',
+            password: 'Password123!',
+            role: 'recruiter',
+          });
+        expect(res.status).toBe(401);
+      });
+
+      it('should reject student attempting to call POST /api/auth/users with 403 Forbidden', async () => {
+        if (!dbAvailable) return;
+
+        const res = await request(app)
+          .post('/api/auth/users')
+          .set('Cookie', studentCookie)
+          .send({
+            email: 'badactor@test-provision.com',
+            password: 'Password123!',
+            role: 'placement_officer',
+          });
+        expect(res.status).toBe(403);
+        expect(res.body.error.code).toBe('FORBIDDEN');
+      });
+
+      it('should allow admin to provision a placement_officer account', async () => {
+        if (!dbAvailable) return;
+
+        const res = await request(app)
+          .post('/api/auth/users')
+          .set('Cookie', adminCookie)
+          .send({
+            email: 'officer.new@test-provision.com',
+            password: 'SecurePassword123!',
+            role: 'placement_officer',
+          });
+
+        expect(res.status).toBe(201);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.user).toMatchObject({
+          email: 'officer.new@test-provision.com',
+          role: 'placement_officer',
+          status: 'active',
+        });
+        expect(res.body.data.user).not.toHaveProperty('passwordHash');
+
+        // Verify account can log in and receives the correct role
+        const loginRes = await request(app)
+          .post('/api/auth/login')
+          .send({
+            email: 'officer.new@test-provision.com',
+            password: 'SecurePassword123!',
+          });
+        expect(loginRes.status).toBe(200);
+        expect(loginRes.body.data.user.role).toBe('placement_officer');
+      });
+
+      it('should allow admin to provision a recruiter account with linked company', async () => {
+        if (!dbAvailable) return;
+
+        const res = await request(app)
+          .post('/api/auth/users')
+          .set('Cookie', adminCookie)
+          .send({
+            email: 'recruiter.new@test-provision.com',
+            password: 'SecurePassword123!',
+            role: 'recruiter',
+            companyName: 'Acme Partner Labs',
+          });
+
+        expect(res.status).toBe(201);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data.user).toMatchObject({
+          email: 'recruiter.new@test-provision.com',
+          role: 'recruiter',
+        });
+        expect(res.body.data.company).toBeDefined();
+
+        // Verify login returns recruiter role
+        const loginRes = await request(app)
+          .post('/api/auth/login')
+          .send({
+            email: 'recruiter.new@test-provision.com',
+            password: 'SecurePassword123!',
+          });
+        expect(loginRes.status).toBe(200);
+        expect(loginRes.body.data.user.role).toBe('recruiter');
+      });
+
+      it('should allow placement_officer to provision a recruiter account for campus hiring partner', async () => {
+        if (!dbAvailable) return;
+
+        const res = await request(app)
+          .post('/api/auth/users')
+          .set('Cookie', officerCookie)
+          .send({
+            email: 'partner.recruiter@test-provision.com',
+            password: 'SecurePassword123!',
+            role: 'recruiter',
+            companyName: 'Partner Tech Inc',
+          });
+
+        expect(res.status).toBe(201);
+        expect(res.body.data.user.role).toBe('recruiter');
+      });
+
+      it('should reject placement_officer attempting to provision another placement_officer or admin with 403 Forbidden', async () => {
+        if (!dbAvailable) return;
+
+        // Attempting to create admin
+        const adminAttempt = await request(app)
+          .post('/api/auth/users')
+          .set('Cookie', officerCookie)
+          .send({
+            email: 'fake.admin@test-provision.com',
+            password: 'SecurePassword123!',
+            role: 'admin',
+          });
+        expect(adminAttempt.status).toBe(403);
+        expect(adminAttempt.body.error.message).toContain('only authorized to provision recruiter accounts');
+
+        // Attempting to create placement officer
+        const officerAttempt = await request(app)
+          .post('/api/auth/users')
+          .set('Cookie', officerCookie)
+          .send({
+            email: 'fake.officer@test-provision.com',
+            password: 'SecurePassword123!',
+            role: 'placement_officer',
+          });
+        expect(officerAttempt.status).toBe(403);
+      });
+
+      it('should reject duplicate email during provisioning with 409 Conflict', async () => {
+        if (!dbAvailable) return;
+
+        const res = await request(app)
+          .post('/api/auth/users')
+          .set('Cookie', adminCookie)
+          .send({
+            email: 'officer.new@test-provision.com', // Already provisioned
+            password: 'SecurePassword123!',
+            role: 'recruiter',
+          });
+        expect(res.status).toBe(409);
+        expect(res.body.error.code).toBe('CONFLICT');
+      });
     });
   });
 });

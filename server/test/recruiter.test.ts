@@ -481,5 +481,89 @@ describe('Recruiter Portal & Company Candidate Management Suite', () => {
       expect(res.body.success).toBe(false);
     });
   });
+
+  // =========================================================================
+  // 6. RECRUITER EVIDENCE EVALUATION & SKILL VERIFICATION WORKFLOW
+  // =========================================================================
+  describe('6. Recruiter Evidence Evaluation & Skill Verification Workflow', () => {
+    let pendingEvidenceId: Types.ObjectId;
+    let tsSkillId: Types.ObjectId;
+
+    beforeAll(async () => {
+      if (!dbAvailable) return;
+      const tsSkill = (await Skill.findOne({ slug: 'typescript' }))!;
+      tsSkillId = tsSkill._id as Types.ObjectId;
+
+      // Student has self-reported TypeScript skill
+      await StudentSkill.create({
+        student: studentProfile._id,
+        skill: tsSkillId,
+        proficiency: 'intermediate',
+        status: 'submitted',
+        isVerified: false,
+      });
+
+      // Student submits evidence for TypeScript
+      const submittedEv = await Evidence.create({
+        student: studentProfile._id,
+        skills: [tsSkillId],
+        type: 'evaluated_project',
+        title: 'TypeScript Microservices API',
+        url: 'https://github.com/student/ts-microservices',
+        status: 'submitted',
+        isVerified: false,
+      });
+      pendingEvidenceId = submittedEv._id as Types.ObjectId;
+    });
+
+    it('Recruiter 1 can review candidate submitted evidence and approve/verify the skill', async () => {
+      if (!dbAvailable) return;
+
+      const res = await request(app)
+        .post(`/api/evidence/${pendingEvidenceId}/review`)
+        .set('Cookie', recruiter1Cookie)
+        .send({
+          action: 'approve',
+          score: 95,
+          confidenceScore: 95,
+          notes: 'Strong clean TypeScript codebase with full unit tests and robust error handling.',
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      // Verify evidence is now verified in MongoDB
+      const updatedEv = await Evidence.findById(pendingEvidenceId);
+      expect(updatedEv?.status).toBe('verified');
+      expect(updatedEv?.isVerified).toBe(true);
+      expect(updatedEv?.score).toBe(95);
+      expect(updatedEv?.reviewedBy?.toString()).toBe(recruiter1User._id.toString());
+      expect(updatedEv?.reviewNotes).toContain('Strong clean TypeScript codebase');
+
+      // Verify student's StudentSkill is updated to verified
+      const updatedSkill = await StudentSkill.findOne({
+        student: studentProfile._id,
+        skill: tsSkillId,
+      });
+      expect(updatedSkill?.status).toBe('verified');
+      expect(updatedSkill?.isVerified).toBe(true);
+      expect(updatedSkill?.confidenceScore).toBe(95);
+    });
+
+    it('PREVENTS unauthorized role (Student) from evaluating or approving evidence', async () => {
+      if (!dbAvailable) return;
+
+      const res = await request(app)
+        .post(`/api/evidence/${pendingEvidenceId}/review`)
+        .set('Cookie', studentCookie)
+        .send({
+          action: 'approve',
+          score: 100,
+        });
+
+      expect(res.status).toBe(403);
+      expect(res.body.success).toBe(false);
+    });
+  });
 });
 

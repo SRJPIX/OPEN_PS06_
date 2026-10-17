@@ -37,6 +37,7 @@ export const JobDiscoveryPage: React.FC = () => {
   const [jobType, setJobType] = useState<string>('');
 
   const queryParams = new URLSearchParams();
+  queryParams.set('limit', '50');
   if (titleQuery.trim()) queryParams.set('title', titleQuery.trim());
   if (companyQuery.trim()) queryParams.set('company', companyQuery.trim());
   if (locationQuery.trim()) queryParams.set('location', locationQuery.trim());
@@ -169,51 +170,59 @@ export const JobDiscoveryPage: React.FC = () => {
       </Card>
 
       {/* Results Header */}
-      <div className="flex items-center justify-between text-xs text-slate-400">
-        <span>
-          Showing {data?.jobs?.length || 0} of {data?.total || 0} matching jobs
-        </span>
-      </div>
+      {(() => {
+        const jobsList: JobItem[] = Array.isArray(data) ? data : (data as any)?.jobs || [];
+        const totalCount: number = Array.isArray(data)
+          ? ((data as any).total ?? (data as any).meta?.total ?? jobsList.length)
+          : (data as any)?.total || jobsList.length;
 
-      {/* Loading Skeletons */}
-      {isLoading && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {[...Array(4)].map((_, i) => (
-            <Skeleton key={i} className="h-64 rounded-2xl" />
-          ))}
-        </div>
-      )}
+        return (
+          <>
+            <div className="flex items-center justify-between text-xs text-slate-400">
+              <span>
+                Showing {jobsList.length} of {totalCount} matching jobs
+              </span>
+            </div>
 
-      {/* Error State */}
-      {isError && (
-        <ErrorState
-          title="Could not load jobs"
-          message={error instanceof Error ? error.message : 'Please check your connection and retry.'}
-          onRetry={() => refetch()}
-        />
-      )}
+            {/* Loading Skeletons */}
+            {isLoading && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {[...Array(4)].map((_, i) => (
+                  <Skeleton key={i} className="h-64 rounded-2xl" />
+                ))}
+              </div>
+            )}
 
-      {/* Empty State */}
-      {!isLoading && !isError && data?.jobs?.length === 0 && (
-        <EmptyState
-          icon={<Briefcase className="w-8 h-8 text-slate-500" />}
-          title="No jobs matching your filters"
-          description="Try broadening your search keywords or resetting your workplace filters."
-          action={{
-            label: 'Clear All Filters',
-            onClick: clearFilters,
-          }}
-        />
-      )}
+            {/* Error State */}
+            {isError && (
+              <ErrorState
+                title="Could not load jobs"
+                message={error instanceof Error ? error.message : 'Please check your connection and retry.'}
+                onRetry={() => refetch()}
+              />
+            )}
 
-      {/* Job Cards Grid */}
-      {!isLoading && !isError && data?.jobs && data.jobs.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          {data.jobs.map((job) => {
-            const companyName =
-              typeof job.company === 'object' ? job.company?.name : 'Company';
-            const companyIndustry =
-              typeof job.company === 'object' ? job.company?.industry : 'Technology';
+            {/* Empty State */}
+            {!isLoading && !isError && jobsList.length === 0 && (
+              <EmptyState
+                icon={<Briefcase className="w-8 h-8 text-slate-500" />}
+                title="No jobs matching your filters"
+                description="Try broadening your search keywords or resetting your workplace filters."
+                action={{
+                  label: 'Clear All Filters',
+                  onClick: clearFilters,
+                }}
+              />
+            )}
+
+            {/* Job Cards Grid */}
+            {!isLoading && !isError && jobsList.length > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {jobsList.map((job) => {
+                  const companyName =
+                    typeof job.company === 'object' ? job.company?.name : 'Company';
+                  const companyIndustry =
+                    typeof job.company === 'object' ? job.company?.industry : 'Technology';
 
             return (
               <Card
@@ -313,8 +322,11 @@ export const JobDiscoveryPage: React.FC = () => {
               </Card>
             );
           })}
-        </div>
-      )}
+              </div>
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 };

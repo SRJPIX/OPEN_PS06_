@@ -51,18 +51,28 @@ export const offerDetailsInputSchema = z.object({
   notes: z.string().trim().max(2000).optional(),
 });
 
-export const updateApplicationStatusSchema = z.object({
-  status: z
-    .string()
-    .trim()
-    .transform(normalizeStatusString)
-    .refine((val) => (APPLICATION_STATUSES as readonly string[]).includes(val), {
-      message: `Invalid status. Valid statuses are: [${APPLICATION_STATUSES.join(', ')}]`,
-    }),
-  notes: z.string().trim().max(1000).optional(),
-  interviewDetails: interviewDetailsInputSchema.optional(),
-  offerDetails: offerDetailsInputSchema.optional(),
-});
+export const updateApplicationStatusSchema = z.preprocess(
+  (val: any) => {
+    if (val && typeof val === 'object') {
+      const statusVal = val.status || val.toStatus;
+      return { ...val, status: statusVal };
+    }
+    return val;
+  },
+  z.object({
+    status: z
+      .string()
+      .trim()
+      .transform(normalizeStatusString)
+      .refine((val) => (APPLICATION_STATUSES as readonly string[]).includes(val), {
+        message: `Invalid status. Valid statuses are: [${APPLICATION_STATUSES.join(', ')}]`,
+      }),
+    toStatus: z.string().trim().optional(),
+    notes: z.string().trim().max(1000).optional(),
+    interviewDetails: interviewDetailsInputSchema.optional(),
+    offerDetails: offerDetailsInputSchema.optional(),
+  })
+);
 
 export const updateInterviewDetailsSchema = interviewDetailsInputSchema;
 

@@ -1,5 +1,6 @@
 import { config } from '../config/env';
 import { connectDB, disconnectDB } from '../config/db';
+import { runSafeSeed } from '../utils/safeSeed';
 import { seedDemoUsers } from '../utils/seed';
 
 const run = async () => {
@@ -15,7 +16,13 @@ const run = async () => {
   }
 
   try {
-    await seedDemoUsers();
+    if (process.argv.includes('--full') || process.argv.includes('--reset')) {
+      console.log('[Seed] Running full reset demonstration seed...');
+      await seedDemoUsers();
+    } else {
+      console.log('[Seed] Running safe non-destructive development seed...');
+      await runSafeSeed();
+    }
     console.log('[Seed] Seeding completed successfully.');
   } catch (error) {
     console.error('[Seed] Error seeding demo users:', error);

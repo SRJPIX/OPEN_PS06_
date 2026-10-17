@@ -3,7 +3,7 @@ import { WORKPLACE_TYPES, JOB_TYPES, JOB_STATUSES } from '../models/Job';
 import { JOB_SOURCE_TYPES } from '../models/JobSource';
 
 export const createJobSchema = z.object({
-  company: z.string().trim().min(1, 'Company ID or name is required'),
+  company: z.string().trim().optional(),
   title: z.string().trim().min(2, 'Job title must be at least 2 characters'),
   description: z.string().trim().min(10, 'Job description must be at least 10 characters'),
   responsibilities: z.array(z.string().trim()).optional().default([]),

@@ -9,8 +9,11 @@ import {
   CheckCircle2,
   AlertCircle,
   HelpCircle,
+  UserPlus,
+  KeyRound,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import { useAuth } from '../../context/AuthContext';
 import type { PlacementSettingData } from '../../types/officer';
 
 export const OfficerSettingsPage: React.FC = () => {
@@ -34,6 +37,39 @@ export const OfficerSettingsPage: React.FC = () => {
   const [saving, setSaving] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const { user: currentUser } = useAuth();
+
+  // User Provisioning State
+  const [provEmail, setProvEmail] = useState('');
+  const [provPassword, setProvPassword] = useState('PartnerPass123!');
+  const [provRole, setProvRole] = useState<'recruiter' | 'placement_officer' | 'admin'>('recruiter');
+  const [provCompanyName, setProvCompanyName] = useState('');
+  const [provLoading, setProvLoading] = useState(false);
+  const [provSuccess, setProvSuccess] = useState<string | null>(null);
+  const [provError, setProvError] = useState<string | null>(null);
+
+  const handleProvisionUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setProvLoading(true);
+    setProvSuccess(null);
+    setProvError(null);
+    try {
+      const res = await api.post<{ user: { email: string; role: string } }>('/auth/users', {
+        email: provEmail,
+        password: provPassword,
+        role: provRole,
+        companyName: provRole === 'recruiter' && provCompanyName.trim() ? provCompanyName.trim() : undefined,
+      });
+      setProvSuccess(`Account for ${res.user.email} (${res.user.role.replace('_', ' ')}) provisioned successfully.`);
+      setProvEmail('');
+      setProvCompanyName('');
+    } catch (err: any) {
+      setProvError(err?.message || 'Failed to provision account.');
+    } finally {
+      setProvLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchSettings();
@@ -487,6 +523,123 @@ export const OfficerSettingsPage: React.FC = () => {
           </div>
         </form>
       )}
+
+      {/* Section 5: Secure Account Provisioning (Recruiters & Officers) */}
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-5">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+          <div className="flex items-center gap-2">
+            <UserPlus className="w-5 h-5 text-primary-600" />
+            <h2 className="text-base font-semibold text-slate-900">Provision Privileged Account</h2>
+          </div>
+          <span className="text-xs px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 font-medium">
+            Administrator Protected
+          </span>
+        </div>
+
+        <p className="text-xs text-slate-500">
+          Intentional, role-gated account creation. Students are barred from self-assigning privileged roles. Placement Officers can invite corporate hiring partners (Recruiters); Platform Admins can provision both Placement Officers and Recruiters.
+        </p>
+
+        {provSuccess && (
+          <div className="p-3.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            <span>{provSuccess}</span>
+          </div>
+        )}
+
+        {provError && (
+          <div className="p-3.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{provError}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleProvisionUser} className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Corporate / Official Email Address
+              </label>
+              <input
+                type="email"
+                required
+                placeholder="recruiter@partner-company.com"
+                value={provEmail}
+                onChange={(e) => setProvEmail(e.target.value)}
+                className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Temporary Secure Password
+              </label>
+              <input
+                type="password"
+                required
+                minLength={8}
+                placeholder="Minimum 8 characters"
+                value={provPassword}
+                onChange={(e) => setProvPassword(e.target.value)}
+                className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Account Role
+              </label>
+              <select
+                value={provRole}
+                onChange={(e) => setProvRole(e.target.value as any)}
+                className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="recruiter">Recruiter (Hiring Partner)</option>
+                {currentUser?.role === 'admin' && (
+                  <>
+                    <option value="placement_officer">Placement Officer (Faculty/TPO)</option>
+                    <option value="admin">Platform Administrator</option>
+                  </>
+                )}
+              </select>
+              <p className="text-[11px] text-slate-400 mt-1">
+                {currentUser?.role === 'admin'
+                  ? 'Admins can provision Recruiters, Officers, and Admins.'
+                  : 'Placement Officers can provision Recruiter accounts for visiting companies.'}
+              </p>
+            </div>
+
+            {provRole === 'recruiter' && (
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                  Company Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g., Acme Innovations"
+                  value={provCompanyName}
+                  onChange={(e) => setProvCompanyName(e.target.value)}
+                  className="w-full px-3.5 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Links the recruiter to existing corporate record or initializes a partner profile.
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2">
+            <button
+              type="submit"
+              disabled={provLoading || !provEmail.trim()}
+              className="inline-flex items-center gap-2 px-5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold rounded-lg shadow-sm transition disabled:opacity-50"
+            >
+              <KeyRound className="w-4 h-4 text-primary-400" />
+              {provLoading ? 'Provisioning...' : 'Provision Privileged Account'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 };

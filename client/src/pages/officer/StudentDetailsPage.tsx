@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   GraduationCap,
   ArrowLeft,
@@ -11,7 +11,10 @@ import {
   FileText,
   ExternalLink,
   Sparkles,
+  CheckCircle2,
 } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { api } from '../../lib/api';
 import {
   Card,
@@ -22,6 +25,7 @@ import {
 } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { Input } from '../../components/ui/Input';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { ErrorState } from '../../components/ui/ErrorState';
 import type { StudentDetailsData } from '../../types/officer';
@@ -29,9 +33,57 @@ import type { StudentDetailsData } from '../../types/officer';
 export const StudentDetailsPage: React.FC = () => {
   const { studentId } = useParams<{ studentId: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { success, error: toastError } = useToast();
+  const queryClient = useQueryClient();
+
   const [activeTab, setActiveTab] = useState<
     'skills' | 'evidence' | 'projects' | 'assessments' | 'applications' | 'resumes'
   >('skills');
+
+  // Evidence review state
+  const [reviewingEvidenceId, setReviewingEvidenceId] = useState<string | null>(null);
+  const [reviewAction, setReviewAction] = useState<'approve' | 'reject'>('approve');
+  const [reviewScore, setReviewScore] = useState<number>(85);
+  const [reviewNotes, setReviewNotes] = useState<string>('');
+
+  const reviewEvidenceMutation = useMutation({
+    mutationFn: async ({
+      id,
+      action,
+      score,
+      notes,
+    }: {
+      id: string;
+      action: 'approve' | 'reject';
+      score: number;
+      notes: string;
+    }) => {
+      return api.post(`/evidence/${id}/review`, {
+        action,
+        score,
+        notes,
+        confidenceScore: score,
+      });
+    },
+    onSuccess: (_, variables) => {
+      success(
+        variables.action === 'approve'
+          ? 'Evidence approved and student skill verified in MongoDB vault.'
+          : 'Evidence rejected. Status updated.'
+      );
+      setReviewingEvidenceId(null);
+      setReviewNotes('');
+      queryClient.invalidateQueries({ queryKey: ['officer-student-detail', studentId] });
+      queryClient.invalidateQueries({ queryKey: ['recruiter-candidates'] });
+      queryClient.invalidateQueries({ queryKey: ['recruiter-candidate-evidence'] });
+      queryClient.invalidateQueries({ queryKey: ['recruiter-jobs'] });
+      queryClient.invalidateQueries({ queryKey: ['student-profile-me'] });
+    },
+    onError: (err: any) => {
+      toastError(err.message || 'Failed to review evidence');
+    },
+  });
 
   const { data, isLoading, isError, error, refetch } = useQuery<StudentDetailsData>({
     queryKey: ['officer-student-detail', studentId],
@@ -71,10 +123,10 @@ export const StudentDetailsPage: React.FC = () => {
           variant="ghost"
           size="sm"
           icon={<ArrowLeft className="w-4 h-4" />}
-          onClick={() => navigate('/officer/students')}
+          onClick={() => navigate(user?.role === 'recruiter' ? '/recruiter/candidates' : '/officer/students')}
           className="text-slate-400 hover:text-white mb-3"
         >
-          Back to Student Directory
+          {user?.role === 'recruiter' ? 'Back to Candidate Shortlist' : 'Back to Student Directory'}
         </Button>
 
         {/* Profile Dossier Header */}
@@ -287,57 +339,181 @@ export const StudentDetailsPage: React.FC = () => {
             {evidence.length === 0 ? (
               <p className="text-xs text-slate-400 py-6 text-center">No evidence artifacts uploaded.</p>
             ) : (
-              evidence.map((ev) => (
-                <div
-                  key={ev._id}
-                  className="p-4 rounded-xl bg-[#070d18] border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-                >
-                  <div className="space-y-1 min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-bold text-white">{ev.title}</span>
-                      <Badge
-                        variant={
-                          ev.status === 'verified'
-                            ? 'success'
-                            : ev.status === 'rejected'
-                            ? 'danger'
-                            : 'warning'
-                        }
-                        size="sm"
-                      >
-                        {ev.status}
-                      </Badge>
-                      <span className="text-xs text-slate-400 capitalize">
-                        &bull; {ev.type.replace('_', ' ')}
-                      </span>
-                    </div>
-                    {ev.description && (
-                      <p className="text-xs text-slate-300 leading-relaxed">{ev.description}</p>
-                    )}
-                    <div className="flex items-center gap-2 text-xs text-slate-400 pt-1 flex-wrap">
-                      <span>Submitted: {new Date(ev.createdAt).toLocaleDateString()}</span>
-                      {ev.skills?.map((s) => (
-                        <span key={s._id} className="text-[11px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded">
-                          {s.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+              evidence.map((ev) => {
+                const isUnderReview = reviewingEvidenceId === ev._id;
+                const canReview = ['recruiter', 'placement_officer', 'admin'].includes(user?.role || '');
+                return (
+                  <div
+                    key={ev._id}
+                    className="p-4 rounded-xl bg-[#070d18] border border-slate-800 space-y-3"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-bold text-white">{ev.title}</span>
+                          <Badge
+                            variant={
+                              ev.status === 'verified'
+                                ? 'success'
+                                : ev.status === 'rejected'
+                                ? 'danger'
+                                : 'warning'
+                            }
+                            size="sm"
+                          >
+                            {ev.status}
+                          </Badge>
+                          <span className="text-xs text-slate-400 capitalize">
+                            &bull; {ev.type.replace('_', ' ')}
+                          </span>
+                          {ev.score !== undefined && (
+                            <span className="text-xs font-bold text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded border border-teal-500/20">
+                              Score: {ev.score}/100
+                            </span>
+                          )}
+                        </div>
+                        {ev.description && (
+                          <p className="text-xs text-slate-300 leading-relaxed">{ev.description}</p>
+                        )}
+                        <div className="flex items-center gap-2 text-xs text-slate-400 pt-1 flex-wrap">
+                          <span>Submitted: {new Date(ev.createdAt).toLocaleDateString()}</span>
+                          {ev.skills?.map((s) => (
+                            <span key={s._id} className="text-[11px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded">
+                              {s.name}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
 
-                  {ev.url && (
-                    <a
-                      href={ev.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="self-start sm:self-center shrink-0"
-                    >
-                      <Button variant="outline" size="sm" rightIcon={<ExternalLink className="w-3.5 h-3.5" />}>
-                        Inspect Link
-                      </Button>
-                    </a>
-                  )}
-                </div>
-              ))
+                      <div className="flex items-center gap-2 shrink-0 self-start sm:self-center">
+                        {ev.url && (
+                          <a
+                            href={ev.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <Button variant="outline" size="sm" rightIcon={<ExternalLink className="w-3.5 h-3.5" />}>
+                              Inspect Link
+                            </Button>
+                          </a>
+                        )}
+
+                        {canReview && !isUnderReview && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setReviewingEvidenceId(ev._id);
+                              setReviewAction(ev.status === 'rejected' ? 'approve' : 'approve');
+                              setReviewScore(ev.score || 85);
+                              setReviewNotes(ev.reviewNotes || '');
+                            }}
+                          >
+                            {ev.status === 'verified' ? 'Re-Evaluate' : 'Review Artifact'}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Review history */}
+                    {ev.reviewedBy && (
+                      <div className="text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+                        Evaluated by <span className="text-slate-200 font-medium">{(ev.reviewedBy as any).email || 'Reviewer'}</span>
+                        {ev.reviewedAt && ` on ${new Date(ev.reviewedAt).toLocaleDateString()}`}
+                        {ev.reviewNotes && (
+                          <div className="text-slate-300 italic mt-1 bg-slate-900/60 p-2 rounded border border-slate-800">
+                            "{ev.reviewNotes}"
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Inline Review Form */}
+                    {isUnderReview && (
+                      <div className="p-3 bg-slate-900/90 rounded-xl border border-slate-700/80 space-y-3 mt-2">
+                        <div className="text-xs font-semibold text-white">
+                          Evaluate Evidence &amp; Update Skill Status
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setReviewAction('approve')}
+                            className={`p-2 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all ${
+                              reviewAction === 'approve'
+                                ? 'bg-emerald-600/20 text-emerald-400 border-emerald-500/50 shadow-sm'
+                                : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            Approve &amp; Verify Skill
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setReviewAction('reject')}
+                            className={`p-2 rounded-lg text-xs font-semibold border flex items-center justify-center gap-1.5 transition-all ${
+                              reviewAction === 'reject'
+                                ? 'bg-rose-600/20 text-rose-400 border-rose-500/50 shadow-sm'
+                                : 'bg-slate-800/60 text-slate-400 border-slate-700 hover:text-white'
+                            }`}
+                          >
+                            Reject Evidence
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div>
+                            <label className="text-[10px] font-medium text-slate-300 block mb-1">
+                              Proficiency Score (0-100)
+                            </label>
+                            <Input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={reviewScore}
+                              onChange={(e) => setReviewScore(parseInt(e.target.value, 10) || 0)}
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="text-[10px] font-medium text-slate-300 block mb-1">
+                              Reviewer Notes
+                            </label>
+                            <Input
+                              placeholder="e.g. Robust architecture, clean commits, comprehensive test suite."
+                              value={reviewNotes}
+                              onChange={(e) => setReviewNotes(e.target.value)}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setReviewingEvidenceId(null)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            isLoading={reviewEvidenceMutation.isPending}
+                            onClick={() =>
+                              reviewEvidenceMutation.mutate({
+                                id: ev._id,
+                                action: reviewAction,
+                                score: reviewScore,
+                                notes: reviewNotes,
+                              })
+                            }
+                          >
+                            Save Evaluation
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             )}
           </CardContent>
         </Card>

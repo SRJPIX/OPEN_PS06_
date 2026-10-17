@@ -14,7 +14,7 @@ interface AuthContextValue {
   profile: StudentProfile | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (credentials: LoginCredentials) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<User>;
   register: (data: RegisterStudentData) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<void>;
@@ -55,13 +55,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshSession();
   }, [refreshSession]);
 
-  const login = async (credentials: LoginCredentials): Promise<void> => {
+  const login = async (credentials: LoginCredentials): Promise<User> => {
     const data = await api.post<AuthSessionResponse>('/auth/login', credentials);
     if (data && data.user) {
       setUser(data.user);
       setProfile(data.profile || null);
       queryClient.clear();
+      return data.user;
     }
+    throw new Error('Login response did not return valid user data.');
   };
 
   const register = async (studentData: RegisterStudentData): Promise<void> => {

@@ -827,5 +827,44 @@ describe('Deterministic Explainable Job-Matching Engine', () => {
 
       expect(res.status).toBe(403);
     });
+
+    it('Student can retrieve personalized interview prep kit via /jobs/:jobId/interview-prep', async () => {
+      if (!dbAvailable) return;
+
+      const res = await request(app)
+        .get(`/api/matching/jobs/${testJob._id}/interview-prep`)
+        .set('Cookie', student1Cookie);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.job.title).toBe(testJob.title);
+      expect(res.body.data.matchSummary.fitScore).toBeGreaterThanOrEqual(90);
+      expect(Array.isArray(res.body.data.strengthQuestions)).toBe(true);
+      expect(Array.isArray(res.body.data.gapQuestions)).toBe(true);
+    });
+
+    it('Student can retrieve interview prep kit via fallback query param /jobs/interview-prep?jobId=...', async () => {
+      if (!dbAvailable) return;
+
+      const res = await request(app)
+        .get(`/api/matching/jobs/interview-prep?jobId=${testJob._id}`)
+        .set('Cookie', student1Cookie);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data.job.id).toBe(testJob._id.toString());
+    });
+
+    it('/api/matching/jobs/interview-prep without jobId returns 400 validation error', async () => {
+      if (!dbAvailable) return;
+
+      const res = await request(app)
+        .get('/api/matching/jobs/interview-prep')
+        .set('Cookie', student1Cookie);
+
+      expect(res.status).toBe(400);
+      expect(res.body.success).toBe(false);
+      expect(res.body.error.code).toBe('VALIDATION_ERROR');
+    });
   });
 });

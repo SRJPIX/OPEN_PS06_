@@ -29,6 +29,20 @@ describe('Environment Configuration Validation', () => {
     expect(config.ANTHROPIC_API_KEY).toBeUndefined();
   });
 
+  it('should accept MONGO_URI as fallback alias when MONGODB_URI is not provided', () => {
+    const envWithMongoUri = {
+      PORT: '5000',
+      NODE_ENV: 'test',
+      CLIENT_URL: 'http://localhost:5173',
+      MONGO_URI: 'mongodb://localhost:27017/evidra_alias_test',
+      JWT_SECRET: 'this_is_a_very_long_test_jwt_secret_with_more_than_32_characters',
+      JWT_EXPIRES_IN: '7d',
+    };
+
+    const config = validateEnv(envWithMongoUri as any);
+    expect(config.MONGODB_URI).toBe('mongodb://localhost:27017/evidra_alias_test');
+  });
+
   it('should reject JWT_SECRET if shorter than 32 characters', () => {
     const invalidEnv = {
       ...validBaseEnv,

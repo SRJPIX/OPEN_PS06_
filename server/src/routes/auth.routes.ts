@@ -1,9 +1,21 @@
 import { Router, Request, Response } from 'express';
-import { registerStudent, login, logout, getMe, changePassword } from '../controllers/auth.controller';
+import {
+  registerStudent,
+  login,
+  logout,
+  getMe,
+  changePassword,
+  provisionUser,
+} from '../controllers/auth.controller';
 import { validateBody } from '../middleware/validate.middleware';
-import { registerStudentSchema, loginSchema } from '../validators/auth.validator';
+import {
+  registerStudentSchema,
+  loginSchema,
+  provisionUserSchema,
+} from '../validators/auth.validator';
 import {
   requireAuth,
+  requireRole,
   requireStudent,
   requirePlacementOfficer,
   requireRecruiter,
@@ -15,10 +27,23 @@ const router = Router();
 
 /**
  * @route   POST /api/auth/register
- * @desc    Register a new student account
+ * @desc    Register a new student account (public registration strictly forces role=student)
  * @access  Public
  */
 router.post('/register', authRateLimiter, validateBody(registerStudentSchema), registerStudent);
+
+/**
+ * @route   POST /api/auth/users
+ * @desc    Secure administrative user provisioning endpoint (officers, recruiters, admins)
+ * @access  Private (Admin, Placement Officer for recruiters)
+ */
+router.post(
+  '/users',
+  requireAuth,
+  requireRole('admin', 'placement_officer'),
+  validateBody(provisionUserSchema),
+  provisionUser
+);
 
 /**
  * @route   POST /api/auth/login

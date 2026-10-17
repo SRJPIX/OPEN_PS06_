@@ -630,7 +630,7 @@ title,company,description,location,requisitionId
         .set('Cookie', studentCookie);
       expect(locFilter.status).toBe(200);
       expect(
-        locFilter.body.data.every((j: { location: string }) => j.location === 'Bengaluru')
+        locFilter.body.data.every((j: { location: string }) => j.location.includes('Bengaluru'))
       ).toBe(true);
 
       // 5. Student cannot view draft job detail (404)

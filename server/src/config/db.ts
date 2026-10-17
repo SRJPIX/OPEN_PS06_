@@ -50,6 +50,34 @@ export const isDatabaseConnected = (): boolean => {
   return mongoose.connection.readyState === 1;
 };
 
+export interface DatabaseInfo {
+  status: DatabaseStatus;
+  connected: boolean;
+  databaseName?: string;
+  host?: string;
+}
+
+export const getDatabaseInfo = (): DatabaseInfo => {
+  const status = getDatabaseStatus();
+  const connected = isDatabaseConnected();
+  let databaseName: string | undefined;
+  let host: string | undefined;
+
+  if (mongoose.connection && mongoose.connection.readyState === 1) {
+    databaseName = mongoose.connection.name || undefined;
+    if (mongoose.connection.host) {
+      host = mongoose.connection.host.replace(/.*@/, '');
+    }
+  }
+
+  return {
+    status,
+    connected,
+    ...(databaseName ? { databaseName } : {}),
+    ...(host ? { host } : {}),
+  };
+};
+
 export const connectDB = async (uri?: string, options?: ConnectOptions): Promise<boolean> => {
   attachConnectionListeners();
 
@@ -75,8 +103,9 @@ export const connectDB = async (uri?: string, options?: ConnectOptions): Promise
       autoIndex: process.env.NODE_ENV !== 'production',
       ...options,
     });
+    const safeHost = conn.connection.host ? conn.connection.host.replace(/.*@/, '') : 'configured-host';
     console.log(
-      `[MongoDB] Connected to host: ${conn.connection.host} (DB: ${conn.connection.name})`
+      `[MongoDB] Connected to host: ${safeHost} (DB: ${conn.connection.name})`
     );
     return true;
   } catch (error) {

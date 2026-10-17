@@ -20,6 +20,7 @@ import {
   FileText,
   Search,
   Settings,
+  Building,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { Badge } from '../ui/Badge';
@@ -194,9 +195,14 @@ export const DashboardLayout: React.FC = () => {
           icon: <Briefcase className="w-4 h-4" />,
         },
         {
-          label: 'Candidate Analytics',
+          label: 'Candidate Shortlist',
           href: '/recruiter/candidates',
-          icon: <Sparkles className="w-4 h-4 text-teal-400" />,
+          icon: <Users className="w-4 h-4 text-teal-400" />,
+        },
+        {
+          label: 'Company Profile',
+          href: '/recruiter/company',
+          icon: <Building className="w-4 h-4 text-purple-400" />,
         },
       ];
     }

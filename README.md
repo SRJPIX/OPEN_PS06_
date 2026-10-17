@@ -109,10 +109,26 @@ SEED_DEMO_USERS=true
 DEMO_USER_PASSWORD=EvidraDemo123!
 ```
 
-### 3. Seed Demo Dataset
+### 3. Seed Demo Dataset & 30 Realistic Demo Jobs
 ```bash
-npm run seed --workspace=server
+# Seed demo accounts and basic workflow data:
+npm run seed
+
+# Seed 30 realistic demo job requisitions across 10 companies & 12 roles (idempotent):
+npm run seed:jobs
 ```
+
+#### Windows PowerShell Commands:
+```powershell
+# Run the demo jobs seed script from project root
+npm run seed:jobs
+
+# Or run via server workspace
+npm run seed:jobs --workspace=server
+```
+
+> [!NOTE]
+> All 30 demo jobs are clearly labeled as `[DEMO]` in title, company, and job description, with `status: 'open'` so they are immediately discoverable in Student Job Discovery, Recruiter Requisitions, Matching Engine, and Interview Intelligence. Running the command multiple times is safe and idempotent.
 
 ### 4. Start Development Servers
 ```bash

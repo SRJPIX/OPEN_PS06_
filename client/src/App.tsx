@@ -101,6 +101,8 @@ export const App: React.FC = () => {
                     <Route path="/recruiter/dashboard" element={<RecruiterDashboard />} />
                     <Route path="/recruiter/jobs" element={<RecruiterDashboard />} />
                     <Route path="/recruiter/candidates" element={<RecruiterDashboard />} />
+                    <Route path="/recruiter/candidates/:studentId" element={<StudentDetailsPage />} />
+                    <Route path="/recruiter/company" element={<RecruiterDashboard />} />
                   </Route>
                 </Route>
               </Route>

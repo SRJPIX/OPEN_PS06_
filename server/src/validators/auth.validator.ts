@@ -54,3 +54,24 @@ export const loginSchema = z.object({
 });
 
 export type LoginInput = z.infer<typeof loginSchema>;
+
+export const provisionUserSchema = z.object({
+  email: z
+    .string()
+    .min(1, 'Email is required')
+    .email('Please provide a valid email address')
+    .toLowerCase()
+    .trim(),
+  password: z
+    .string()
+    .min(8, 'Password must be at least 8 characters long')
+    .max(100, 'Password cannot exceed 100 characters'),
+  role: z.enum(['placement_officer', 'recruiter', 'admin', 'student'], {
+    message: 'Role must be one of: placement_officer, recruiter, admin, student',
+  }),
+  companyId: z.string().trim().optional(),
+  companyName: z.string().trim().optional(),
+  name: z.string().trim().optional(),
+});
+
+export type ProvisionUserInput = z.infer<typeof provisionUserSchema>;
