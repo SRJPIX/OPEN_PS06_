@@ -99,6 +99,24 @@ export const errorHandler = (
     return;
   }
 
+  // 6b. Mongoose Buffering / Server Selection / Disconnection Error
+  if (
+    err instanceof mongoose.Error &&
+    (err.message.includes('buffering timed out') ||
+      err.name === 'MongooseServerSelectionError' ||
+      err.message.includes('topology was closed'))
+  ) {
+    sendError(
+      res,
+      'SERVICE_UNAVAILABLE',
+      'Database connection timed out or is currently unavailable. Please verify MongoDB is running.',
+      503,
+      { error: err.message },
+      includeStack ? err.stack : undefined
+    );
+    return;
+  }
+
   // 7. Unhandled / Internal Server Error
   if (process.env.NODE_ENV !== 'test') {
     console.error('[UnhandledError]', err);

@@ -16,22 +16,6 @@ export default defineConfig(({ mode }) => {
           target: apiUrl,
           changeOrigin: true,
           secure: false,
-          configure: (proxy) => {
-            proxy.on('error', (_err, _req, res) => {
-              if (res && 'writeHead' in res && !res.headersSent) {
-                res.writeHead(503, { 'Content-Type': 'application/json' });
-                res.end(
-                  JSON.stringify({
-                    success: false,
-                    error: {
-                      code: 'BACKEND_OFFLINE',
-                      message: `Backend service is offline or unreachable at ${apiUrl}. Please start the backend service on port 5000 (e.g. npm run dev).`,
-                    },
-                  })
-                );
-              }
-            });
-          },
         },
       },
     },

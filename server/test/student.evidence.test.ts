@@ -320,6 +320,17 @@ describe('Student Profile & Evidence-Backed Skill System', () => {
       expect(res.body.data.length).toBeGreaterThanOrEqual(2);
     });
 
+    it("should support GET /api/evidence/me as alias for student's own evidence", async () => {
+      if (!dbAvailable) return;
+
+      const res = await request(app).get('/api/evidence/me').set('Cookie', student1Cookie);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(2);
+    });
+
     it("should disallow other students from viewing another student's evidence (Ownership Enforcement)", async () => {
       if (!dbAvailable) return;
 

@@ -66,7 +66,7 @@ export const UploadedResumeAnalysisPage: React.FC = () => {
   // Fetch student vault evidence for linking
   const { data: myEvidence = [] } = useQuery<EvidenceItem[]>({
     queryKey: ['my-evidence-for-linking'],
-    queryFn: () => api.get<EvidenceItem[]>('/evidence'),
+    queryFn: () => api.get<EvidenceItem[]>('/evidence/me'),
     enabled: !!linkingClaim,
   });
 

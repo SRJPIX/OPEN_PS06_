@@ -1,4 +1,4 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import multer from 'multer';
 import {
   getMyResumes,
@@ -24,7 +24,7 @@ const upload = multer({
   limits: {
     fileSize: 5 * 1024 * 1024, // 5MB limit
   },
-  fileFilter: (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  fileFilter: (_req, file, cb) => {
     if (file.mimetype === 'application/pdf' || file.originalname.toLowerCase().endsWith('.pdf')) {
       cb(null, true);
     } else {
@@ -71,8 +71,8 @@ router.post('/generate', requireStudent, generateResume);
 router.post(
   '/upload-and-analyze',
   requireStudent,
-  (req: Request, res: Response, next: NextFunction) => {
-    upload.single('file')(req, res, (err: unknown) => {
+  (req, res, next) => {
+    upload.single('file')(req, res, (err) => {
       if (err instanceof multer.MulterError) {
         if (err.code === 'LIMIT_FILE_SIZE') {
           return res.status(400).json({
@@ -81,10 +81,8 @@ router.post(
           });
         }
         return res.status(400).json({ success: false, message: err.message });
-      } else if (err instanceof Error) {
-        return res.status(400).json({ success: false, message: err.message });
       } else if (err) {
-        return res.status(400).json({ success: false, message: String(err) });
+        return res.status(400).json({ success: false, message: err.message });
       }
       next();
     });

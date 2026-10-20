@@ -118,9 +118,10 @@ export interface JobItem {
   location: string;
   workplaceType: 'remote' | 'hybrid' | 'on_site';
   jobType: 'full_time' | 'internship' | 'part_time' | 'contract';
+  salaryRange?: { min?: number; max?: number; currency?: string };
   salaryMin?: number;
   salaryMax?: number;
-  salaryCurrency: string;
+  salaryCurrency?: string;
   deadline?: string;
   status: 'draft' | 'open' | 'closed' | 'archived';
   requisitionId?: string;

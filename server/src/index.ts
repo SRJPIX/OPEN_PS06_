@@ -1,9 +1,17 @@
 import dns from 'node:dns';
-dns.setServers(['8.8.8.8', '8.8.4.4']);
 import { config } from './config/env';
 import { createApp } from './app';
 import { connectDB, disconnectDB } from './config/db';
 import { seedDemoUsers } from './utils/seed';
+
+// Configure public DNS for MongoDB Atlas SRV resolution only when using cloud mongodb+srv:// URIs
+if (config.MONGODB_URI.startsWith('mongodb+srv://')) {
+  try {
+    dns.setServers(['8.8.8.8', '8.8.4.4']);
+  } catch {
+    // Keep default system DNS if custom servers cannot be set
+  }
+}
 
 const startServer = async () => {
   console.log(`[Evidra API] Initializing in ${config.NODE_ENV} environment...`);

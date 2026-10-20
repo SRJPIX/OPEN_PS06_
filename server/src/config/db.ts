@@ -99,7 +99,7 @@ export const connectDB = async (uri?: string, options?: ConnectOptions): Promise
 
   try {
     const conn = await mongoose.connect(mongoUri, {
-      serverSelectionTimeoutMS: 3000,
+      serverSelectionTimeoutMS: 10000,
       autoIndex: process.env.NODE_ENV !== 'production',
       ...options,
     });
@@ -108,34 +108,38 @@ export const connectDB = async (uri?: string, options?: ConnectOptions): Promise
       `[MongoDB] Connected to host: ${safeHost} (DB: ${conn.connection.name})`
     );
     return true;
-  } catch (error) {
+  } catch (error: any) {
     if (process.env.NODE_ENV !== 'test') {
       console.error('[MongoDB] Initial connection failure:', error);
-    }
-    // In development mode, if remote cluster fails (e.g. IP not whitelisted on Atlas),
-    // attempt fallback to local MongoDB so local testing is never blocked by timeout.
-    if (
-      process.env.NODE_ENV !== 'production' &&
-      !mongoUri.includes('localhost') &&
-      !mongoUri.includes('127.0.0.1')
-    ) {
-      try {
-        console.warn(
-          '[MongoDB] Remote cluster unreachable (likely IP whitelist). Attempting fallback to local MongoDB at mongodb://localhost:27017/evidra...'
+      const isTlsAlert =
+        error?.message?.includes('tlsv1 alert internal error') ||
+        error?.cause?.code === 'ERR_SSL_TLSV1_ALERT_INTERNAL_ERROR' ||
+        error?.message?.includes('SSL alert number 80') ||
+        error?.cause?.message?.includes('tlsv1 alert internal error');
+
+      if (isTlsAlert) {
+        console.error(
+          '\n[MongoDB Atlas Diagnostic] Remote Atlas host rejected the TLS handshake with alert 80 (internal error).' +
+          '\n  This occurs when:' +
+          '\n  1. Your current public IP is not in Atlas Network Access list (Security -> Network Access -> Add Current IP).' +
+          '\n  2. The Atlas cluster is currently Paused (Database Deployments -> Resume).'
         );
-        const fallbackConn = await mongoose.connect('mongodb://localhost:27017/evidra', {
-          serverSelectionTimeoutMS: 2000,
-          autoIndex: true,
-          ...options,
-        });
-        console.log(
-          `[MongoDB] Connected to local fallback host: ${fallbackConn.connection.host} (DB: ${fallbackConn.connection.name})`
+      }
+
+      const isLocalConnRefused =
+        (mongoUri.includes('127.0.0.1') || mongoUri.includes('localhost')) &&
+        (error?.message?.includes('ECONNREFUSED') ||
+          error?.cause?.code === 'ECONNREFUSED' ||
+          error?.message?.includes('serverSelectionTimeoutMS'));
+
+      if (isLocalConnRefused) {
+        console.error(
+          '\n[Local MongoDB Diagnostic] Could not connect to local MongoDB on 127.0.0.1:27017 (service not running or connection refused).' +
+          '\n  To start the Windows MongoDB service, run in PowerShell:' +
+          '\n    Start-Service MongoDB' +
+          '\n  To check service status:' +
+          '\n    Get-Service MongoDB'
         );
-        return true;
-      } catch (fallbackErr) {
-        if (process.env.NODE_ENV !== 'test') {
-          console.error('[MongoDB] Local fallback connection also failed:', fallbackErr);
-        }
       }
     }
     return false;

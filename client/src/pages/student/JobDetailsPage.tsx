@@ -98,44 +98,21 @@ export const JobDetailsPage: React.FC = () => {
 
   if (isJobError || !jobData?.job) {
     return (
-      <div className="space-y-6">
-        <div>
-          <Link
-            to="/student/jobs"
-            className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition font-medium"
-          >
-            <ChevronLeft className="w-4 h-4" /> Back to all jobs
-          </Link>
-        </div>
-        <ErrorState
-          title="Job Listing Unavailable"
-          message={
-            jobError instanceof Error
-              ? jobError.message
-              : 'The requested job requisition was not found or is no longer active in the database.'
-          }
-          onRetry={() => navigate('/student/jobs')}
-        />
-      </div>
+      <ErrorState
+        title="Job Listing Unavailable"
+        message={jobError instanceof Error ? jobError.message : 'The job requisition was not found.'}
+        onRetry={() => window.location.reload()}
+      />
     );
   }
 
   const job = jobData.job;
   const match = matchData?.match;
-  const companyName =
-    typeof job.company === 'object' && job.company !== null
-      ? (job.company as any).name || 'Company'
-      : typeof job.company === 'string'
-      ? job.company
-      : 'Company';
+  const companyName = typeof job.company === 'object' ? job.company?.name : 'Company';
 
   const eligibleResumes = (resumesData || []).filter(
     (r) => r.status === 'generated' || r.status === 'verified'
   );
-
-  const displaySalaryMin = job.salaryMin || (job as any).salaryRange?.min;
-  const displaySalaryMax = job.salaryMax || (job as any).salaryRange?.max;
-  const displayCurrency = job.salaryCurrency || (job as any).salaryRange?.currency || '₹';
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -158,7 +135,7 @@ export const JobDetailsPage: React.FC = () => {
                 {job.title}
               </h1>
               <Badge variant="teal" size="sm" dot>
-                {(job.status || 'open').toUpperCase()}
+                {job.status.toUpperCase()}
               </Badge>
             </div>
 
@@ -170,20 +147,20 @@ export const JobDetailsPage: React.FC = () => {
               <span className="text-slate-600">&bull;</span>
               <span className="flex items-center gap-1.5 text-slate-400">
                 <MapPin className="w-4 h-4 text-slate-500" />
-                {job.location || 'Location'} ({(job.workplaceType || 'on_site').replace('_', ' ')})
+                {job.location} ({job.workplaceType.replace('_', ' ')})
               </span>
               <span className="text-slate-600">&bull;</span>
               <Badge variant="electric" size="sm">
-                {(job.jobType || 'full_time').replace('_', ' ')}
+                {job.jobType.replace('_', ' ')}
               </Badge>
             </div>
 
             {/* Compensation & Deadline */}
             <div className="flex flex-wrap items-center gap-4 text-xs pt-1">
-              {displaySalaryMin && (
+              {(job.salaryRange?.min ?? job.salaryMin) && (
                 <span className="text-emerald-400 font-mono font-semibold text-sm">
-                  {displayCurrency} {displaySalaryMin.toLocaleString()}
-                  {displaySalaryMax ? ` - ${displaySalaryMax.toLocaleString()}` : '+'}
+                  {job.salaryRange?.currency || job.salaryCurrency || 'INR'} {(job.salaryRange?.min ?? job.salaryMin)!.toLocaleString()}
+                  {(job.salaryRange?.max ?? job.salaryMax) ? ` - ${(job.salaryRange?.max ?? job.salaryMax)!.toLocaleString()}` : '+'}
                 </span>
               )}
               {job.deadline && (
@@ -249,17 +226,17 @@ export const JobDetailsPage: React.FC = () => {
 
                 {/* Eligibility Badge */}
                 <div>
-                  {match.eligibility?.status === 'MET' ? (
+                  {match.eligibility.status === 'MET' ? (
                     <Badge variant="success" size="md" dot>
                       Eligibility Met
                     </Badge>
-                  ) : match.eligibility?.status === 'NOT_MET' ? (
+                  ) : match.eligibility.status === 'NOT_MET' ? (
                     <Badge variant="danger" size="md" dot>
                       Eligibility Failed
                     </Badge>
                   ) : (
                     <Badge variant="warning" size="md" dot>
-                      Eligibility Pending
+                      Eligibility Unknown
                     </Badge>
                   )}
                 </div>
@@ -282,8 +259,8 @@ export const JobDetailsPage: React.FC = () => {
                   <ShieldCheck className="w-4 h-4 text-blue-400" />
                   Engine Match Explanation
                 </h4>
-                <p className="text-sm text-slate-200 leading-relaxed">{match.explanation || 'No match narrative generated.'}</p>
-                {match.eligibility?.reasons && match.eligibility.reasons.length > 0 && (
+                <p className="text-sm text-slate-200 leading-relaxed">{match.explanation}</p>
+                {match.eligibility.reasons.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-slate-800 text-xs text-slate-400">
                     <span className="font-semibold text-slate-300">Eligibility Audit Check:</span>{' '}
                     {match.eligibility.reasons.join(' ')}
@@ -298,21 +275,21 @@ export const JobDetailsPage: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                       <CheckCircle2 className="w-4 h-4" />
-                      Supported Skills ({match.supportedSkills?.length || 0})
+                      Supported Skills ({match.supportedSkills.length})
                     </h4>
                   </div>
-                  {(!match.supportedSkills || match.supportedSkills.length === 0) ? (
+                  {match.supportedSkills.length === 0 ? (
                     <p className="text-xs text-slate-500">No verified skill claims matched for this job.</p>
                   ) : (
                     <div className="space-y-2">
-                      {(match.supportedSkills || []).map((s, idx) => (
+                      {match.supportedSkills.map((s) => (
                         <div
-                          key={s.skillId || idx}
+                          key={s.skillId}
                           className="p-2.5 rounded-lg bg-[#0b1329] border border-slate-800/80 flex items-center justify-between text-xs"
                         >
                           <span className="font-medium text-white">{s.skillName}</span>
                           <span className="font-mono text-emerald-400 font-semibold">
-                            Match: {((s.matchValue ?? 1) * 100).toFixed(0)}%
+                            Match: {(s.matchValue * 100).toFixed(0)}%
                           </span>
                         </div>
                       ))}
@@ -325,18 +302,18 @@ export const JobDetailsPage: React.FC = () => {
                   <div className="flex items-center justify-between">
                     <h4 className="text-xs font-semibold uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
                       <AlertTriangle className="w-4 h-4" />
-                      Required Skill Gaps ({match.requiredSkillGaps?.length || 0})
+                      Required Skill Gaps ({match.requiredSkillGaps.length})
                     </h4>
                   </div>
-                  {(!match.requiredSkillGaps || match.requiredSkillGaps.length === 0) ? (
+                  {match.requiredSkillGaps.length === 0 ? (
                     <p className="text-xs text-emerald-400 font-medium">
                       All required skills are supported by verified evidence!
                     </p>
                   ) : (
                     <div className="space-y-2">
-                      {(match.requiredSkillGaps || []).map((s, idx) => (
+                      {match.requiredSkillGaps.map((s) => (
                         <div
-                          key={s.skillId || idx}
+                          key={s.skillId}
                           className="p-2.5 rounded-lg bg-[#0b1329] border border-rose-950/40 flex items-center justify-between text-xs"
                         >
                           <span className="font-medium text-slate-200">{s.skillName}</span>
@@ -384,18 +361,14 @@ export const JobDetailsPage: React.FC = () => {
                 Mandatory Required Skills (Weight 3x):
               </h4>
               <div className="flex flex-wrap gap-1.5">
-                {(job.requiredSkills || []).filter(Boolean).map((s: any, idx: number) => {
-                  const skillName = typeof s === 'object' && s !== null ? s.name || s.title : String(s);
-                  const skillId = typeof s === 'object' && s !== null && s._id ? s._id : `req-${idx}`;
-                  return (
-                    <span
-                      key={skillId}
-                      className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#070d18] border border-blue-500/30 text-blue-300"
-                    >
-                      {skillName}
-                    </span>
-                  );
-                })}
+                {job.requiredSkills?.map((s) => (
+                  <span
+                    key={s._id}
+                    className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#070d18] border border-blue-500/30 text-blue-300"
+                  >
+                    {s.name}
+                  </span>
+                ))}
               </div>
             </div>
 
@@ -404,18 +377,14 @@ export const JobDetailsPage: React.FC = () => {
                 Preferred Skills (Weight 1x):
               </h4>
               <div className="flex flex-wrap gap-1.5">
-                {(job.preferredSkills || []).filter(Boolean).map((s: any, idx: number) => {
-                  const skillName = typeof s === 'object' && s !== null ? s.name || s.title : String(s);
-                  const skillId = typeof s === 'object' && s !== null && s._id ? s._id : `pref-${idx}`;
-                  return (
-                    <span
-                      key={skillId}
-                      className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#070d18] border border-teal-500/30 text-teal-300"
-                    >
-                      {skillName}
-                    </span>
-                  );
-                })}
+                {job.preferredSkills?.map((s) => (
+                  <span
+                    key={s._id}
+                    className="text-xs font-medium px-2.5 py-1 rounded-lg bg-[#070d18] border border-teal-500/30 text-teal-300"
+                  >
+                    {s.name}
+                  </span>
+                ))}
               </div>
             </div>
           </div>

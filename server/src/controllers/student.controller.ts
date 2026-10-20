@@ -214,7 +214,7 @@ export const getDashboardStats = async (
         .limit(4)
         .populate({
           path: 'job',
-          select: 'title workplaceType jobType location salaryMin salaryMax salaryCurrency',
+          select: 'title workplaceType jobType location salaryRange status requisitionId',
           populate: { path: 'company', select: 'name logoUrl industry' },
         }),
       Evidence.find({ student: profile._id })

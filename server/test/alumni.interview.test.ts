@@ -6,6 +6,8 @@ import { User } from '../src/models/User';
 import { AlumniProfile } from '../src/models/AlumniProfile';
 import { InterviewReport } from '../src/models/InterviewReport';
 import { hashPassword } from '../src/utils/password';
+import { config } from '../src/config/env';
+import { connectDB } from '../src/config/db';
 
 const app = createApp();
 
@@ -20,10 +22,8 @@ describe('Alumni Referral Network & Interview Question Repository Suite', () => 
 
   beforeAll(async () => {
     try {
-      if (mongoose.connection.readyState !== 1) {
-        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/evidra');
-      }
-      dbAvailable = true;
+      dbAvailable = await connectDB(config.MONGODB_URI, { serverSelectionTimeoutMS: 3000 });
+      if (!dbAvailable) return;
 
       const passwordHash = await hashPassword('EvidraTestPass123!');
 

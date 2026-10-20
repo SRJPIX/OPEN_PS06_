@@ -51,7 +51,6 @@ router.post('/', requireStudent, validateBody(submitEvidenceSchema), submitEvide
 
 /**
  * @route   GET /api/evidence
- * @route   GET /api/evidence/me
  * @desc    Student: list own submitted evidence
  * @access  Private (Student)
  */

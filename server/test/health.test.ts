@@ -70,4 +70,18 @@ describe('Health and Readiness Endpoints', () => {
       expect(response.body.error.message).toContain('endpoint not found');
     });
   });
+
+  describe('Database Disconnected Guard (503 Fast-Fail)', () => {
+    it('should immediately return 503 SERVICE_UNAVAILABLE on database-dependent routes when DB is disconnected', async () => {
+      const response = await request(app).post('/api/auth/login').send({
+        email: 'test@example.com',
+        password: 'Password123!',
+      });
+
+      expect(response.status).toBe(503);
+      expect(response.body).toHaveProperty('success', false);
+      expect(response.body.error).toHaveProperty('code', 'SERVICE_UNAVAILABLE');
+      expect(response.body.error.message).toContain('Database service is currently unavailable');
+    });
+  });
 });

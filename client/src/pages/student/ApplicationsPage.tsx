@@ -436,8 +436,8 @@ export const ApplicationsPage: React.FC = () => {
               <div className="p-3 rounded-lg bg-[#0e172e] border border-slate-800">
                 <p className="text-slate-400 font-medium mb-1">Compensation / Terms</p>
                 <p className="text-white font-medium">
-                  {selectedDetail.application?.job?.salaryMin
-                    ? `${selectedDetail.application.job.salaryCurrency || 'INR'} ${selectedDetail.application.job.salaryMin.toLocaleString()} - ${selectedDetail.application.job.salaryMax?.toLocaleString() || 'DOE'}`
+                  {(selectedDetail.application?.job?.salaryRange?.min ?? selectedDetail.application?.job?.salaryMin)
+                    ? `${selectedDetail.application.job.salaryRange?.currency || selectedDetail.application.job.salaryCurrency || 'INR'} ${(selectedDetail.application.job.salaryRange?.min ?? selectedDetail.application.job.salaryMin)?.toLocaleString()} - ${(selectedDetail.application.job.salaryRange?.max ?? selectedDetail.application.job.salaryMax)?.toLocaleString() || 'DOE'}`
                     : 'Disclosed in interview stage'}
                 </p>
               </div>

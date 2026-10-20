@@ -22,6 +22,7 @@ import {
 } from '../src/utils/applicationWorkflow';
 import { exportApplicationsToCsv } from '../src/utils/applicationCsvExporter';
 import { isAuthorizedForCompany } from '../src/controllers/application.controller';
+import { updateApplicationStatusSchema } from '../src/validators/application.validator';
 
 describe('Placement Application Pipeline & Tracking System', () => {
   const app = createApp();
@@ -314,6 +315,26 @@ describe('Placement Application Pipeline & Tracking System', () => {
       const check = canTransitionStatus('INTERVIEW', 'INTERVIEW', 'placement_officer');
       expect(check.valid).toBe(false);
       expect(check.message).toContain('already in status');
+    });
+
+    it('validates status payloads using either status or toStatus fields', () => {
+      const parsedWithStatus = updateApplicationStatusSchema.safeParse({
+        status: 'UNDER_REVIEW',
+        notes: 'Ready for recruiter review',
+      });
+      expect(parsedWithStatus.success).toBe(true);
+      if (parsedWithStatus.success) {
+        expect(parsedWithStatus.data.status).toBe('UNDER_REVIEW');
+      }
+
+      const parsedWithToStatus = updateApplicationStatusSchema.safeParse({
+        toStatus: 'INTERVIEW',
+        notes: 'Advancing to interview round',
+      });
+      expect(parsedWithToStatus.success).toBe(true);
+      if (parsedWithToStatus.success) {
+        expect(parsedWithToStatus.data.status).toBe('INTERVIEW');
+      }
     });
   });
 

@@ -1,4 +1,4 @@
-import express, { Application, Request, Response, NextFunction } from 'express';
+import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
@@ -19,6 +19,7 @@ import recruiterRoutes from './routes/recruiter.routes';
 import alumniRoutes from './routes/alumni.routes';
 import interviewRoutes from './routes/interview.routes';
 import { apiRateLimiter } from './middleware/rateLimiter';
+import { requireDatabase } from './middleware/dbCheck.middleware';
 import { errorHandler, notFoundHandler } from './middleware/error.middleware';
 import { sendSuccess } from './utils/apiResponse';
 
@@ -39,7 +40,7 @@ export const createApp = (): Application => {
 
   app.use(
     cors({
-      origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+      origin: (origin, callback) => {
         // Allow non-browser requests (Postman, curl, internal checks)
         if (!origin) return callback(null, true);
         const cleanOrigin = origin.replace(/\/+$/, '');
@@ -105,25 +106,25 @@ export const createApp = (): Application => {
   app.use('/api/health', healthRoutes);
   app.use('/health', healthRoutes);
   // Direct readiness alias for GET /ready and GET /api/ready
-  app.use(['/api/ready', '/ready'], (req: Request, res: Response, next: NextFunction) => {
+  app.use(['/api/ready', '/ready'], (req: Request, res: Response, next) => {
     req.url = '/ready';
     return healthRoutes(req, res, next);
   });
 
-  // 8. Application Domain Routes
-  app.use('/api/auth', authRoutes);
-  app.use('/api/students', studentRoutes);
-  app.use('/api/evidence', evidenceRoutes);
-  app.use('/api/skills', skillRoutes);
-  app.use('/api/jobs/sources', jobSourceRoutes);
-  app.use('/api/jobs', jobRoutes);
-  app.use('/api/matching', matchingRoutes);
-  app.use('/api/resumes', resumeRoutes);
-  app.use('/api/applications', applicationRoutes);
-  app.use('/api/officer', officerRoutes);
-  app.use('/api/recruiter', recruiterRoutes);
-  app.use('/api/alumni', alumniRoutes);
-  app.use('/api/interviews', interviewRoutes);
+  // 8. Application Domain Routes (Guarded by requireDatabase to prevent buffering hangs)
+  app.use('/api/auth', requireDatabase, authRoutes);
+  app.use('/api/students', requireDatabase, studentRoutes);
+  app.use('/api/evidence', requireDatabase, evidenceRoutes);
+  app.use('/api/skills', requireDatabase, skillRoutes);
+  app.use('/api/jobs/sources', requireDatabase, jobSourceRoutes);
+  app.use('/api/jobs', requireDatabase, jobRoutes);
+  app.use('/api/matching', requireDatabase, matchingRoutes);
+  app.use('/api/resumes', requireDatabase, resumeRoutes);
+  app.use('/api/applications', requireDatabase, applicationRoutes);
+  app.use('/api/officer', requireDatabase, officerRoutes);
+  app.use('/api/recruiter', requireDatabase, recruiterRoutes);
+  app.use('/api/alumni', requireDatabase, alumniRoutes);
+  app.use('/api/interviews', requireDatabase, interviewRoutes);
 
   // 9. 404 Handler for undefined routes
   app.use(notFoundHandler);

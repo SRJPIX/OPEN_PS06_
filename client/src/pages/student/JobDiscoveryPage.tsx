@@ -260,10 +260,10 @@ export const JobDiscoveryPage: React.FC = () => {
                     <Badge variant="electric" size="sm">
                       {job.jobType.replace('_', ' ')}
                     </Badge>
-                    {job.salaryMin && (
+                    {(job.salaryRange?.min ?? job.salaryMin) && (
                       <span className="text-emerald-400 font-mono font-medium text-[11px]">
-                        {job.salaryCurrency} {job.salaryMin.toLocaleString()}
-                        {job.salaryMax ? ` - ${job.salaryMax.toLocaleString()}` : '+'}
+                        {job.salaryRange?.currency || job.salaryCurrency || 'INR'} {(job.salaryRange?.min ?? job.salaryMin)!.toLocaleString()}
+                        {(job.salaryRange?.max ?? job.salaryMax) ? ` - ${(job.salaryRange?.max ?? job.salaryMax)!.toLocaleString()}` : '+'}
                       </span>
                     )}
                   </div>
